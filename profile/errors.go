@@ -10,26 +10,26 @@ import (
 ******************/
 
 // An ErrNoCape error signals that an operation failed because a profile had no cape associated with it.
-type ErrNoCape string
+type ErrNoCape struct{}
 
 func (e ErrNoCape) Error() string {
 
-	return string(e)
+	return "profile has no cape"
 }
 
-var errNoCape ErrNoCape = "profile has no cape"
+var errNoCape = ErrNoCape{}
 
 // /////////////
 
 // An ErrNoSkin error signals that an operation failed because a profile had no custom skin set.
-type ErrNoSkin string
+type ErrNoSkin struct{}
 
 func (e ErrNoSkin) Error() string {
 
-	return string(e)
+	return "profile has no custom skin"
 }
 
-var errNoSkin ErrNoSkin = "profile has no custom skin"
+var errNoSkin = ErrNoSkin{}
 
 // /////////////
 
@@ -63,14 +63,14 @@ func (e ErrNoSuchID) Error() string {
 
 // An ErrTooManyRequests error occurs when the client has exceeded its server communication rate limit.
 // At the time of writing, the load operations have a shared rate limit of 600 requests per 10 minutes.
-type ErrTooManyRequests string
+type ErrTooManyRequests struct{}
 
 func (e ErrTooManyRequests) Error() string {
 
-	return string(e)
+	return "request rate limit exceeded"
 }
 
-var errTooManyRequests ErrTooManyRequests = "request rate limit exceeded"
+var errTooManyRequests = ErrTooManyRequests{}
 
 // /////////////
 
