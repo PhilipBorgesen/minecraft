@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"net/http"
 )
 
 /********
@@ -65,12 +67,35 @@ func (pp *ProfileProperties) Model() Model {
 	return pp.model
 }
 
+// SkinReader is a convenience method for retrieving a profile's custom skin texture.
+// If no skin texture can be fetched from the URL returned by SkinURL, e.g. because
+// no custom skin has been set for the profile, this method returns a ErrNoSkin error.
+// If an error occurs, nil is returned instead of a ReadCloser.
+//
+// It is the client's responsibility to close the ReadCloser.
+func (pp *ProfileProperties) SkinReader() (io.ReadCloser, error) {
+
+	return readTexture(pp.skinURL, errNoSkin)
+}
+
+// CapeReader is a convenience method for retrieving a profile's cape texture.
+// If no cape texture can be fetched from the URL returned by CapeURL, e.g. because
+// the profile has no cape associated, this method returns a ErrNoCape error.
+// If an error occurs, nil is returned instead of a ReadCloser.
+//
+// It is the client's responsibility to close the ReadCloser.
+func (pp *ProfileProperties) CapeReader() (io.ReadCloser, error) {
+
+	return readTexture(pp.capeURL, errNoCape)
+}
+
 /******************
 * PROFILE METHODS *
 ******************/
 
 // LoadProperties loads and returns the profile's skin, cape and model information.
 // On success, the result will be memoized in a thread safe manner to be returned on future calls to this method.
+// If an error occurs, nil is returned instead and the result is not memoized.
 // A profile which was loaded by LoadWithProperties has this information preloaded.
 //
 // NB! For each profile, profile properties may only be requested once per minute.
@@ -105,6 +130,31 @@ func (p *Profile) Properties() *ProfileProperties {
 /************
 * INTERNALS *
 ************/
+
+// Perform a GET request to URL, retrieve a ReadCloser to the returned result.
+// If url is the empty string or the url creates a 404 response when requested,
+// this function returns notFoundErr
+func readTexture(url string, notFoundErr error) (_ io.ReadCloser, err error) {
+
+	if url == "" {
+
+		return nil, notFoundErr
+	}
+
+	// Fetch image
+	resp, err := http.Get(url)
+	if err != nil {
+
+		if resp != nil && resp.StatusCode == 404 {
+
+			return nil, notFoundErr
+		}
+
+		return nil, err
+	}
+
+	return resp.Body, nil
+}
 
 // Map of property => parser pairs
 var propertyPopulators = map[string]func(base64 string, p *ProfileProperties) error{

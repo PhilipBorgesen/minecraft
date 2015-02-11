@@ -9,6 +9,30 @@ import (
 * EXPORTED ERRORS *
 ******************/
 
+// An ErrNoCape error signals that an operation failed because a profile had no cape associated with it.
+type ErrNoCape string
+
+func (e ErrNoCape) Error() string {
+
+	return string(e)
+}
+
+var errNoCape ErrNoCape = "profile has no cape"
+
+// /////////////
+
+// An ErrNoSkin error signals that an operation failed because a profile had no custom skin set.
+type ErrNoSkin string
+
+func (e ErrNoSkin) Error() string {
+
+	return string(e)
+}
+
+var errNoSkin ErrNoSkin = "profile has no custom skin"
+
+// /////////////
+
 // An ErrNoSuchUser error signals that an operation failed because no profile exists with the denoted username.
 type ErrNoSuchUser struct {
 
