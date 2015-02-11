@@ -69,7 +69,7 @@ func (pp *ProfileProperties) Model() Model {
 * PROFILE METHODS *
 ******************/
 
-// LoadProperties loads and returns profile skin, cape and model information.
+// LoadProperties loads and returns the profile's skin, cape and model information.
 // On success, the result will be memoized in a thread safe manner to be returned on future calls to this method.
 // A profile which was loaded by LoadWithProperties has this information preloaded.
 //
@@ -93,7 +93,7 @@ func (p *Profile) LoadProperties() (*ProfileProperties, error) {
 	return p.properties, nil
 }
 
-// Properties simply returns profile skin, cape and model information if loaded, otherwise nil.
+// Properties returns the profile's skin, cape and model information if loaded, otherwise nil.
 func (p *Profile) Properties() *ProfileProperties {
 
 	p.mutex.Lock()
