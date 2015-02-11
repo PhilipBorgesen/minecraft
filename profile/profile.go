@@ -1,4 +1,4 @@
-// This package allows the username, ID, skin and username history of Minecraft profiles to be retrieved by either username or ID.
+// Package profile allows the username, ID, skin and username history of Minecraft profiles to be retrieved by either username or ID.
 // It is a binding for the public Mojang API described at: http://wiki.vg/Mojang_API
 //
 // Since Mojang's API historically have been inconsistent on whether demo profiles are returned or not,
