@@ -21,6 +21,7 @@ const LoadManyMaxSize int = 100
 *********************/
 
 // Load fetches the profile currently associated with a username.
+// If an error occurs, nil is returned instead.
 func Load(username string) (*Profile, error) {
 
 	url := fmt.Sprintf(loadURL, username)
@@ -28,6 +29,7 @@ func Load(username string) (*Profile, error) {
 }
 
 // LoadAtTime fetches the profile associated with a username at the specified instant of time.
+// If an error occurs, nil is returned instead.
 func LoadAtTime(username string, tm time.Time) (*Profile, error) {
 
 	url := fmt.Sprintf(loadAtTimeURL, username, tm.Unix())
@@ -35,12 +37,14 @@ func LoadAtTime(username string, tm time.Time) (*Profile, error) {
 }
 
 // LoadByID fetches the profile identified by an ID.
+// If an error occurs, nil is returned instead.
 func LoadByID(id string) (*Profile, error) {
 
 	return LoadWithNameHistory(id)
 }
 
 // LoadNameHistory fetches the profile identified by an ID.
+// If an error occurs, nil is returned instead.
 // As a bonus, profiles loaded by this function already have their name history preloaded.
 func LoadWithNameHistory(id string) (*Profile, error) {
 
@@ -71,6 +75,7 @@ func LoadWithNameHistory(id string) (*Profile, error) {
 }
 
 // LoadWithProperties fetches the profile identified by a ID.
+// If an error occurs, nil is returned instead.
 // As a bonus, profiles loaded by this function already have skin, cape and model information preloaded.
 //
 // NB! For each profile, profile properties may only be requested once per minute.
@@ -110,7 +115,7 @@ func LoadWithProperties(id string) (*Profile, error) {
 
 // LoadMany fetches multiple profiles based on current username/profile mappings.
 // Usernames mapping to no profile are ignored and absent from the returned results.
-// Duplicate usernames are only returned once.
+// Duplicate usernames are only returned once, and nil is returned if an error occurs.
 //
 // NB! Only a maximum of LoadManyMaxSize profiles may be fetched at once.
 // If more are attempted loaded in the same operation an ErrMaxSizeExceeded error occurs.
