@@ -46,7 +46,7 @@ func (p *Profile) LoadNameHistory() ([]PastName, error) {
 
 	if p.history == nil {
 
-		loaded, err := LoadWithNameHistory(p.uuid)
+		loaded, err := LoadWithNameHistory(p.id)
 		if err != nil {
 
 			return nil, err

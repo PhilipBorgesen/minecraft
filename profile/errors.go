@@ -23,16 +23,16 @@ func (e ErrNoSuchUser) Error() string {
 
 // /////////////
 
-// An ErrNoSuchUUID error signals that an operation failed because no profile exists with the denoted UUID.
-type ErrNoSuchUUID struct {
+// An ErrNoSuchID error signals that an operation failed because no profile exists with the denoted ID.
+type ErrNoSuchID struct {
 
-	// The UUID for which no profile could be found
-	UUID string
+	// The ID for which no profile could be found
+	ID string
 }
 
-func (e ErrNoSuchUUID) Error() string {
+func (e ErrNoSuchID) Error() string {
 
-	return fmt.Sprintf("UUID %s: no such profile", e.UUID)
+	return fmt.Sprintf("ID %s: no such profile", e.ID)
 }
 
 // /////////////

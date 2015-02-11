@@ -81,7 +81,7 @@ func (p *Profile) LoadProperties() (*ProfileProperties, error) {
 
 	if p.properties == nil {
 
-		loaded, err := LoadWithProperties(p.uuid)
+		loaded, err := LoadWithProperties(p.id)
 		if err != nil {
 
 			return nil, err

@@ -23,9 +23,9 @@ func Example() {
 		panic("failed to load: " + err.Error())
 	}
 
-	// Get case-corrected username and id
+	// Get case-corrected username and ID
 	name := p.Name()
-	uuid := p.UUID()
+	id := p.ID()
 
 	// Load previously used usernames
 	hist, err := p.LoadNameHistory()
@@ -64,7 +64,7 @@ func Example() {
 	fmt.Printf("INFORMATION FOR:         %32s\n", username)
 	fmt.Println("---------------------------------------------------------")
 	fmt.Printf("CASE-CORRECTED USERNAME: %32s\n", name)
-	fmt.Printf("UUID:                    %32s\n", uuid)
+	fmt.Printf("ID:                      %32s\n", id)
 	fmt.Printf("PRIOR NAMES:             %32s\n", fmt.Sprint(hist))
 	fmt.Println()
 	fmt.Printf("SKIN MODEL:              %32s\n", model)
@@ -76,7 +76,7 @@ func Example() {
 	// INFORMATION FOR:                                 nergalic
 	// ---------------------------------------------------------
 	// CASE-CORRECTED USERNAME:                         Nergalic
-	// UUID:                    087cc153c3434ff7ac497de1569affa1
+	// ID:                      087cc153c3434ff7ac497de1569affa1
 	// PRIOR NAMES:                              [GeneralSezuan]
 	//
 	// SKIN MODEL:                                         Steve
@@ -84,15 +84,15 @@ func Example() {
 	// CAPE URL:                                          <NONE>
 }
 
-// The following example shows how to retrieve a profile by UUID
+// The following example shows how to retrieve a profile by ID
 // and then save its custom skin (if any) to a .png file.
 func ExampleProfileProperties() {
 
-	// Profile UUID to retrieve skin for
-	uuid := fetchProfileIdFromDatabase()
+	// Profile ID to retrieve skin for
+	id := fetchProfileIdFromDatabase()
 
 	// Load profile with skin information preloaded
-	p, err := profile.LoadWithProperties(uuid)
+	p, err := profile.LoadWithProperties(id)
 
 	// We know properties already have been loaded, hence we
 	// can use the Properties method instead of LoadProperties.

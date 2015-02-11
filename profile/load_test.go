@@ -16,7 +16,7 @@ import (
 // 1. known account of author
 const (
 	nergName = "Nergalic"
-	nergUUID = "087cc153c3434ff7ac497de1569affa1"
+	nergID   = "087cc153c3434ff7ac497de1569affa1"
 	// Model is expected to be Steve
 	// Cape is not expected
 )
@@ -26,7 +26,7 @@ var nergHist = []pastName{{"GeneralSezuan", time.Unix(1423047705, 0)}}
 // 2. known account of author
 const (
 	breeName = "BreeSakana"
-	breeUUID = "d9a5b542ce88442aaab38ec13e6c7773"
+	breeID   = "d9a5b542ce88442aaab38ec13e6c7773"
 )
 
 var breeHist = []pastName{}
@@ -35,7 +35,7 @@ var breeHist = []pastName{}
 // Profile may in theory be deleted at any moment...
 //
 // TODO: Substitute for a cape profile under author's control
-const capeUUID = "d90b68bc81724329a047f1186dcd4336"
+const capeID = "d90b68bc81724329a047f1186dcd4336"
 
 /******************
 * TEST STRUCTURES *
@@ -44,9 +44,9 @@ const capeUUID = "d90b68bc81724329a047f1186dcd4336"
 // Username --> profile info
 // Must maintain consistency with the other test structures
 var loadTestUsers = map[string]user{
-	nergName:                  {nergUUID, nergName},
-	strings.ToUpper(nergName): {nergUUID, nergName}, // Casing should not matter
-	breeName:                  {breeUUID, breeName},
+	nergName:                  {nergID, nergName},
+	strings.ToUpper(nergName): {nergID, nergName}, // Casing should not matter
+	breeName:                  {breeID, breeName},
 }
 
 // Should match loadTestUsers without duplicates
@@ -65,7 +65,7 @@ var pastNames = map[string][]pastName{
 *************/
 
 type user struct {
-	uuid string
+	id   string
 	name string
 }
 
@@ -91,14 +91,14 @@ type propertySet struct {
 var oneSec time.Duration = time.Unix(1, 0).Sub(time.Unix(0, 0))
 
 // Verifies the basics of a loaded profile, i.e. that no errors happened and that
-// the UUID and name attributes are as expected.
+// the ID and name attributes are as expected.
 func assertBasicInfo(t *testing.T, fn string, err error, got *Profile, expect user) {
 
 	checkForErr(t, err, fn)
 
-	if uuid := got.UUID(); uuid != expect.uuid {
+	if id := got.ID(); id != expect.id {
 
-		t.Errorf("%s.UUID() = %q; want %q", fn, uuid, expect.uuid)
+		t.Errorf("%s.ID() = %q; want %q", fn, id, expect.id)
 	}
 	if name := got.Name(); name != expect.name {
 
@@ -127,7 +127,7 @@ func checkForErr(t *testing.T, err error, fn string) {
 * TEST CASES *
 *************/
 
-// Test that the correct UUID and case-corrected name gets loaded
+// Test that the correct ID and case-corrected name gets loaded
 func TestLoad(t *testing.T) {
 
 	for n, expect := range loadTestUsers {
@@ -137,7 +137,7 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-// Test that the correct UUID and case-corrected name gets loaded for past names
+// Test that the correct ID and case-corrected name gets loaded for past names
 func TestLoadAtTime(t *testing.T) {
 
 	for n, hist := range pastNames {
@@ -185,9 +185,9 @@ func TestLoadWithNameHistory(t *testing.T) {
 	for n, hist := range pastNames {
 
 		expect := loadTestUsers[n]
-		fn := fmt.Sprintf("LoadWithNameHistory(%q)", expect.uuid)
+		fn := fmt.Sprintf("LoadWithNameHistory(%q)", expect.id)
 
-		got, err := LoadWithNameHistory(expect.uuid)
+		got, err := LoadWithNameHistory(expect.id)
 
 		if got.NameHistory() == nil {
 
@@ -198,7 +198,7 @@ func TestLoadWithNameHistory(t *testing.T) {
 
 		// Test name history for correctness and ascending order
 		h, err := got.LoadNameHistory()
-		
+
 		// Never ought to happen
 		checkForErr(t, err, fn)
 
@@ -223,7 +223,7 @@ func TestLoadWithNameHistory(t *testing.T) {
 }
 
 // Verify that:
-// 1) LoadWithProperties successfully loads a profile with correct name and UUID
+// 1) LoadWithProperties successfully loads a profile with correct name and ID
 // 2) LoadWithProperties preloads properties
 // 3) Skins are handled successfully, a) present or b) not
 // 4) Model are handled successfully, a) present or b) not (Alex/Steve)
@@ -232,59 +232,59 @@ func TestLoadWithNameHistory(t *testing.T) {
 // TODO: 3b, 4a
 func TestLoadWithProperties(t *testing.T) {
 
-    ///////////////////////////
+	///////////////////////////
 	// TEST 1, 2, 3a, 4b, 5b //
-    ///////////////////////////
+	///////////////////////////
 
 	u1 := loadTestUsers[nergName]
-	
-	fn := fmt.Sprintf("LoadWithProperties(%q)", u1.uuid)
-	p1, err := LoadWithProperties(u1.uuid)
-	
-	// 1) Correct name and UUID, no errors
+
+	fn := fmt.Sprintf("LoadWithProperties(%q)", u1.id)
+	p1, err := LoadWithProperties(u1.id)
+
+	// 1) Correct name and ID, no errors
 	assertBasicInfo(t, fn, err, p1, u1)
-	
+
 	// 2) Properties preloaded
 	if p1.Properties() == nil {
-	
+
 		t.Errorf("%s.Properties() = nil; want preloaded", fn)
 	}
-	
+
 	pp1, err := p1.LoadProperties()
-	
+
 	// Never ought to happen
 	checkForErr(t, err, fn)
-	
+
 	// 3a) Skin set
 	if _, ok := pp1.SkinURL(); !ok {
-	
+
 		t.Errorf("%s.Properties().SkinURL() = \"\"; want URL", fn)
 	}
-	
+
 	// 4b) Model is Steve
 	if m := pp1.Model(); m != Steve {
-	
+
 		t.Errorf("%s.Properties().Model() = %s; want %s", fn, m, Steve)
 	}
-	
+
 	// 5b) No cape
 	if c, ok := pp1.CapeURL(); ok {
-	
+
 		t.Errorf("%s.Properties().CapeURL() = %q; want %q", fn, c, "")
 	}
-	
+
 	////////////////
 	// TEST 2, 5a //
 	////////////////
 
-	fn = fmt.Sprintf("LoadWithProperties(%q)", capeUUID)
-	
-	p2, err := LoadWithProperties(capeUUID)
+	fn = fmt.Sprintf("LoadWithProperties(%q)", capeID)
+
+	p2, err := LoadWithProperties(capeID)
 	checkForErr(t, err, fn)
-	
+
 	// 2 + 5a) Check for cape and blow up if not preloaded
 	if p2.Properties().CapeURL == nil {
-	
+
 		t.Errorf("%s.Properties().CapeURL() = \"\"; want URL", fn)
 	}
 }
@@ -293,14 +293,14 @@ func TestLoadWithProperties(t *testing.T) {
 // Allow the operation to succeed in case Mojang changes the rate limit.
 func TestLoadWithPropertiesFailure(t *testing.T) {
 
-	uuid := loadTestUsers[breeName].uuid
+	id := loadTestUsers[breeName].id
 
 	for i := 0; i < 3; i++ {
 
-		_, err := LoadWithProperties(uuid)
+		_, err := LoadWithProperties(id)
 		if _, nsp := err.(ErrTooManyRequests); !nsp && err != nil {
 
-			t.Fatalf("LoadWithProperties(%q) returned non-ErrTooManyRequests error: %s", uuid, err)
+			t.Fatalf("LoadWithProperties(%q) returned non-ErrTooManyRequests error: %s", id, err)
 		}
 	}
 }

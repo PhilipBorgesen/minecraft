@@ -34,27 +34,24 @@ func LoadAtTime(username string, tm time.Time) (*Profile, error) {
 	return load(url, username)
 }
 
-// LoadByUUID fetches the profile identified by a UUID.
-// The passed UUID should not contain any hyphens.
-func LoadByUUID(uuid string) (*Profile, error) {
+// LoadByID fetches the profile identified by an ID.
+func LoadByID(id string) (*Profile, error) {
 
-	return LoadWithNameHistory(uuid)
+	return LoadWithNameHistory(id)
 }
 
-// LoadNameHistory fetches the profile identified by a UUID.
-// The passed UUID should not contain any hyphens.
-//
+// LoadNameHistory fetches the profile identified by an ID.
 // As a bonus, profiles loaded by this function already have their name history preloaded.
-func LoadWithNameHistory(uuid string) (*Profile, error) {
+func LoadWithNameHistory(id string) (*Profile, error) {
 
-	var nsu error = ErrNoSuchUUID{uuid}
+	var nsu error = ErrNoSuchID{id}
 
-	if uuid == "" {
+	if id == "" {
 
 		return nil, nsu
 	}
 
-	url := fmt.Sprintf(loadWithNameHistoryURL, uuid)
+	url := fmt.Sprintf(loadWithNameHistoryURL, id)
 	j, err := getJson(url, nsu)
 	if err != nil {
 
@@ -65,7 +62,7 @@ func LoadWithNameHistory(uuid string) (*Profile, error) {
 	name, hist := createHistory(a)
 
 	p := &Profile{
-		uuid:    uuid,
+		id:      id,
 		name:    name,
 		history: hist,
 	}
@@ -73,22 +70,20 @@ func LoadWithNameHistory(uuid string) (*Profile, error) {
 	return p, nil
 }
 
-// LoadWithProperties fetches the profile identified by a UUID.
-// The passed UUID should not contain any hyphens.
-//
+// LoadWithProperties fetches the profile identified by a ID.
 // As a bonus, profiles loaded by this function already have skin, cape and model information preloaded.
 //
 // NB! For each profile, profile properties may only be requested once per minute.
-func LoadWithProperties(uuid string) (*Profile, error) {
+func LoadWithProperties(id string) (*Profile, error) {
 
-	var nsu error = ErrNoSuchUUID{uuid}
+	var nsu error = ErrNoSuchID{id}
 
-	if uuid == "" {
+	if id == "" {
 
 		return nil, nsu
 	}
 
-	url := fmt.Sprintf(loadWithPropertiesURL, uuid)
+	url := fmt.Sprintf(loadWithPropertiesURL, id)
 	j, err := getJson(url, nsu)
 	if err != nil {
 
@@ -228,7 +223,7 @@ func buildProfile(j interface{}, demoErr error) (*Profile, error) {
 	}
 
 	p := &Profile{
-		uuid: m["id"].(string),
+		id:   m["id"].(string),
 		name: m["name"].(string),
 	}
 
