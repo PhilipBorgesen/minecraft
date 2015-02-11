@@ -2,8 +2,8 @@ package profile_test
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
-	"net/http"
 
 	"github.com/PhilipRasmussen/minecraft/profile"
 )
@@ -85,7 +85,7 @@ func Example() {
 }
 
 // The following example shows how to retrieve a profile by ID
-// and then save its custom skin (if any) to a .png file.
+// and then save its skin to a .png file.
 func ExampleProfileProperties() {
 
 	// Profile ID to retrieve skin for
@@ -93,30 +93,31 @@ func ExampleProfileProperties() {
 
 	// Load profile with skin information preloaded
 	p, err := profile.LoadWithProperties(id)
+	if err != nil {
+
+		panic("failed to load profile: " + err.Error())
+	}
 
 	// We know properties already have been loaded, hence we
 	// can use the Properties method instead of LoadProperties.
-	skinURL, ok := p.Properties().SkinURL()
-	if !ok {
-
-		// Profile has no custom skin set.
-		// Should be handled some way
-	}
-
-	// Fetch skin
-	resp, err := http.Get(skinURL)
-	defer resp.Body.Close()
-
+	rc, err := p.Properties().SkinReader()
 	if err != nil {
 
-		// Handle error
-		panic("failed to load skin: " + err.Error())
+		switch err.(type) {
+
+		case profile.ErrNoSkin: // Profile had no skin.
+			rc = readSteveDefault() // Fallback to default Steve skin.
+
+		default: // Handle error
+			panic("failed to load skin: " + err.Error())
+		}
 	}
+	defer rc.Close()
 
 	// Filename: <PROFILE_USERNAME>.png
 	filename := p.Name() + ".png"
 
-	bs, err := ioutil.ReadAll(resp.Body)
+	bs, err := ioutil.ReadAll(rc)
 	if err != nil || len(bs) == 0 {
 
 		// Handle error
@@ -133,4 +134,9 @@ func ExampleProfileProperties() {
 func fetchProfileIdFromDatabase() string {
 
 	return "cabefc91b5df4c87886a6c604da2e46f"
+}
+
+func readSteveDefault() io.ReadCloser {
+
+	panic("Test profile had no skin")
 }
