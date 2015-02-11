@@ -15,8 +15,7 @@ TODOs & Ideas
       - Test code on profiles having a longer username history than one.
       - Write automatic tests for handling profiles using the slim player model.
       - Write automatic tests for handling profiles with no custom skin.
-    - Add caching hooks.
-    - Add convenience methods for reading capes and skins.
+    - Add caching hooks + usage example
 
 License
 -------
