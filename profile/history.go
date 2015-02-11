@@ -14,7 +14,7 @@ type PastName struct {
 	until time.Time
 }
 
-// Name returns the username represented by a PastName.
+// Name returns the username represented by p.
 func (p PastName) Name() string {
 
 	return p.name
