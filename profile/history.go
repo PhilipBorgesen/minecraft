@@ -14,19 +14,19 @@ type PastName struct {
 	until time.Time
 }
 
-// Name returns the username represented by p.
+// Name returns the username represented by a PastName.
 func (p PastName) Name() string {
 
 	return p.name
 }
 
-// Until returns the time at which the profile changed from this username to another.
+// Until returns the time at which the profile stopped using this username.
 func (p PastName) Until() time.Time {
 
 	return p.until
 }
 
-// String uses the past profile username as its string representation.
+// String uses Name as its string representation.
 func (p PastName) String() string {
 
 	return p.name

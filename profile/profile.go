@@ -31,13 +31,13 @@ func (p *Profile) ID() string {
 	return p.id
 }
 
-// Name returns the profile username.
+// Name returns the profile's username.
 func (p *Profile) Name() string {
 
 	return p.name
 }
 
-// String uses the profile username as its string representation.
+// String uses Name as its string representation.
 func (p *Profile) String() string {
 
 	return p.name
