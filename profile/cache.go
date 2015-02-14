@@ -141,7 +141,8 @@ func (s Store) Load(username string) (*Profile, error) {
 // to the Mojang servers.
 //
 // Profiles successfully loaded from the Mojang servers will be passed to
-// the Store's cache as a CacheEntry.
+// the Store's cache as a CacheEntry. Afterwards the mapping (username, tm) --> ID
+// will also be passed by means of the Cache's CacheNameAtTime method.
 func (s Store) LoadAtTime(username string, tm time.Time) (*Profile, error) {
 
 	c := s.cache
