@@ -96,9 +96,9 @@ type Store struct {
 
 // Cache returns the cache used by the store.
 // If no cache is used, nil is returned.
-func (ps Store) Cache() Cache {
+func (s Store) Cache() Cache {
 
-	return ps.cache
+	return s.cache
 }
 
 // Load functions like the Load package function, additionally trying to
@@ -107,9 +107,9 @@ func (ps Store) Cache() Cache {
 //
 // Profiles successfully loaded from the Mojang servers will be passed to
 // the Store's cache as a CacheEntry.
-func (ps Store) Load(username string) (*Profile, error) {
+func (s Store) Load(username string) (*Profile, error) {
 
-	c := ps.cache
+	c := s.cache
 
 	// No caching?
 	if c == nil {
@@ -142,9 +142,9 @@ func (ps Store) Load(username string) (*Profile, error) {
 //
 // Profiles successfully loaded from the Mojang servers will be passed to
 // the Store's cache as a CacheEntry.
-func (ps Store) LoadAtTime(username string, tm time.Time) (*Profile, error) {
+func (s Store) LoadAtTime(username string, tm time.Time) (*Profile, error) {
 
-	c := ps.cache
+	c := s.cache
 
 	// No caching?
 	if c == nil {
@@ -178,9 +178,9 @@ func (ps Store) LoadAtTime(username string, tm time.Time) (*Profile, error) {
 //
 // Profiles successfully loaded from the Mojang servers will be passed to
 // the Store's cache as a CacheEntry.
-func (ps Store) LoadByID(id string) (*Profile, error) {
+func (s Store) LoadByID(id string) (*Profile, error) {
 
-	c := ps.cache
+	c := s.cache
 
 	// No caching?
 	if c == nil {
@@ -213,9 +213,9 @@ func (ps Store) LoadByID(id string) (*Profile, error) {
 //
 // Profiles successfully loaded from the Mojang servers will be passed to
 // the Store's cache as a CacheEntry.
-func (ps Store) LoadWithNameHistory(id string) (*Profile, error) {
+func (s Store) LoadWithNameHistory(id string) (*Profile, error) {
 
-	c := ps.cache
+	c := s.cache
 
 	// No caching?
 	if c == nil {
@@ -248,9 +248,9 @@ func (ps Store) LoadWithNameHistory(id string) (*Profile, error) {
 //
 // Profiles successfully loaded from the Mojang servers will be passed to
 // the Store's cache as a CacheEntry.
-func (ps Store) LoadWithProperties(id string) (*Profile, error) {
+func (s Store) LoadWithProperties(id string) (*Profile, error) {
 
-	c := ps.cache
+	c := s.cache
 
 	// No caching?
 	if c == nil {

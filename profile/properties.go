@@ -44,9 +44,9 @@ type Properties struct {
 // SkinURL returns a URL to the profile's custom skin texture if such one has been set.
 // If a skin has been set, the boolean return value will be true.
 // If no skin texture has been set for the profile, this method returns ("", false).
-func (pp *Properties) SkinURL() (url string, ok bool) {
+func (ps *Properties) SkinURL() (url string, ok bool) {
 
-	url = pp.skinURL
+	url = ps.skinURL
 	ok = url != ""
 	return
 }
@@ -54,17 +54,17 @@ func (pp *Properties) SkinURL() (url string, ok bool) {
 // CapeURL returns a URL to the profile's cape texture if such one is associated.
 // If a cape is associated, the boolean return value will be true.
 // If no cape texture is associated with the profile, this method returns ("", false).
-func (pp *Properties) CapeURL() (url string, ok bool) {
+func (ps *Properties) CapeURL() (url string, ok bool) {
 
-	url = pp.capeURL
+	url = ps.capeURL
 	ok = url != ""
 	return
 }
 
 // Model returns the player model type used by the profile.
-func (pp *Properties) Model() Model {
+func (ps *Properties) Model() Model {
 
-	return pp.model
+	return ps.model
 }
 
 // SkinReader is a convenience method for retrieving a profile's custom skin texture.
@@ -73,9 +73,9 @@ func (pp *Properties) Model() Model {
 // If an error occurs, nil is returned instead of a ReadCloser.
 //
 // It is the client's responsibility to close the ReadCloser.
-func (pp *Properties) SkinReader() (io.ReadCloser, error) {
+func (ps *Properties) SkinReader() (io.ReadCloser, error) {
 
-	return readTexture(pp.skinURL, errNoSkin)
+	return readTexture(ps.skinURL, errNoSkin)
 }
 
 // CapeReader is a convenience method for retrieving a profile's cape texture.
@@ -84,9 +84,9 @@ func (pp *Properties) SkinReader() (io.ReadCloser, error) {
 // If an error occurs, nil is returned instead of a ReadCloser.
 //
 // It is the client's responsibility to close the ReadCloser.
-func (pp *Properties) CapeReader() (io.ReadCloser, error) {
+func (ps *Properties) CapeReader() (io.ReadCloser, error) {
 
-	return readTexture(pp.capeURL, errNoCape)
+	return readTexture(ps.capeURL, errNoCape)
 }
 
 /******************
