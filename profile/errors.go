@@ -100,7 +100,7 @@ var errDemo = errors.New("demo profile detected")
 
 // Extracts any Mojang error from a piece of JSON decoded using the encoding/json package
 // Mojang errors are JSON objects with "error" and "errorMessage" fields
-func getJsonError(json interface{}) error {
+func getJSONError(json interface{}) error {
 
 	if m, isMap := json.(map[string]interface{}); isMap {
 

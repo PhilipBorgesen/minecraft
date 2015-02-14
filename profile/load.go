@@ -56,7 +56,7 @@ func LoadWithNameHistory(id string) (*Profile, error) {
 	}
 
 	url := fmt.Sprintf(loadWithNameHistoryURL, id)
-	j, err := getJson(url, nsu)
+	j, err := getJSON(url, nsu)
 	if err != nil {
 
 		return nil, err
@@ -89,7 +89,7 @@ func LoadWithProperties(id string) (*Profile, error) {
 	}
 
 	url := fmt.Sprintf(loadWithPropertiesURL, id)
-	j, err := getJson(url, nsu)
+	j, err := getJSON(url, nsu)
 	if err != nil {
 
 		return nil, err
@@ -148,7 +148,7 @@ func LoadMany(username ...string) ([]*Profile, error) {
 		return nil, err
 	}
 
-	j, err := postJson(loadManyURL, body, nil)
+	j, err := postJSON(loadManyURL, body, nil)
 	if err != nil {
 
 		return nil, err
@@ -198,7 +198,7 @@ func load(url, user string) (*Profile, error) {
 		return nil, nsu
 	}
 
-	j, err := getJson(url, nsu)
+	j, err := getJSON(url, nsu)
 	if err != nil {
 
 		return nil, err
@@ -247,7 +247,7 @@ func buildProfile(j interface{}, demoErr error) (*Profile, error) {
 // url is what URL to request.
 // ncErr is the error to return if a 204 No Content response is received.
 // If ncErr is nil, no error is returned on a 204 No Content response.
-func getJson(url string, ncErr error) (interface{}, error) {
+func getJSON(url string, ncErr error) (interface{}, error) {
 
 	// Make request
 	resp, err := http.Get(url)
@@ -257,14 +257,14 @@ func getJson(url string, ncErr error) (interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	return parseJson(resp, ncErr)
+	return parseJSON(resp, ncErr)
 }
 
 // Common implementation used to make POST requests to the public Mojang API.
 // url is what URL to request.
 // ncErr is the error to return if a 204 No Content response is received.
 // If ncErr is nil, no error is returned on a 204 No Content response.
-func postJson(url string, body []byte, ncErr error) (interface{}, error) {
+func postJSON(url string, body []byte, ncErr error) (interface{}, error) {
 
 	// Make request
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
@@ -274,13 +274,13 @@ func postJson(url string, body []byte, ncErr error) (interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	return parseJson(resp, ncErr)
+	return parseJSON(resp, ncErr)
 }
 
 // Common implementation for parsing a JSON response from the public Mojang API.
 // ncErr is the error to return if a 204 No Content response is received.
 // If ncErr is nil, no error is returned on a 204 No Content response.
-func parseJson(resp *http.Response, ncErr error) (interface{}, error) {
+func parseJSON(resp *http.Response, ncErr error) (interface{}, error) {
 
 	// Profile exists?
 	if resp.StatusCode == 204 && ncErr != nil {
@@ -297,7 +297,7 @@ func parseJson(resp *http.Response, ncErr error) (interface{}, error) {
 	}
 
 	// Check for JSON errors
-	if err := getJsonError(j); err != nil {
+	if err := getJSONError(j); err != nil {
 
 		return nil, err
 	}
