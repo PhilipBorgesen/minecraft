@@ -63,6 +63,9 @@ func (e ErrNoSuchID) Error() string {
 
 // An ErrTooManyRequests error occurs when the client has exceeded its server communication rate limit.
 // At the time of writing, the load operations have a shared rate limit of 600 requests per 10 minutes.
+//
+// NB! The rate limit for reading profile properties is much stricter:
+// For each profile, profile properties may only be requested once per minute.
 type ErrTooManyRequests struct{}
 
 func (e ErrTooManyRequests) Error() string {

@@ -39,7 +39,10 @@ func (p PastName) String() string {
 // LoadNameHistory loads and returns a copy of the profile's past usernames sorted in ascending order.
 // On success, the result will be memoized in a thread safe manner to be returned on future calls to this method.
 // If an error occurs, nil is returned instead and the result is not memoized.
+//
 // A profile which was loaded by LoadWithNameHistory has this information preloaded.
+//
+// If the profile was loaded using a Store, if not already loaded that store will be used to load the name history.
 func (p *Profile) LoadNameHistory() ([]PastName, error) {
 
 	p.mutex.Lock()
@@ -47,7 +50,18 @@ func (p *Profile) LoadNameHistory() ([]PastName, error) {
 
 	if p.history == nil {
 
-		loaded, err := LoadWithNameHistory(p.id)
+		var loaded *Profile
+		var err error
+
+		if c := p.cache; c != nil {
+
+			loaded, err = Store{c}.LoadWithNameHistory(p.id)
+
+		} else {
+
+			loaded, err = LoadWithNameHistory(p.id)
+		}
+
 		if err != nil {
 
 			return nil, err

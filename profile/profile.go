@@ -5,7 +5,8 @@
 // to ensure consistency this package have been written never to return those.
 //
 // Please note that the public Mojang API is request rate limited, so if you expect heavy usage you should cache the results.
-// For more information see the documentation for ErrTooManyRequests and LoadWithProperties.
+// For more information on rate limits see the documentation for ErrTooManyRequests.
+// For information on how to implement and enable caching see the Cache and Store types.
 package profile
 
 import "sync"
@@ -21,8 +22,11 @@ type Profile struct {
 	name string
 
 	history    []PastName
-	properties *ProfileProperties
+	properties *Properties
 	mutex      sync.Mutex
+
+	// Cache to use when loaded name histories or properties
+	cache Cache
 }
 
 // ID returns the universially unique ID of the profile.

@@ -86,7 +86,7 @@ func Example() {
 
 // The following example shows how to retrieve a profile by ID
 // and then save its skin to a .png file.
-func ExampleProfileProperties() {
+func ExampleProperties() {
 
 	// Profile ID to retrieve skin for
 	id := fetchProfileIdFromDatabase()
@@ -133,6 +133,7 @@ func ExampleProfileProperties() {
 
 func fetchProfileIdFromDatabase() string {
 
+	// AxeLaw ID
 	return "cabefc91b5df4c87886a6c604da2e46f"
 }
 

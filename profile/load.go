@@ -113,8 +113,8 @@ func LoadWithProperties(id string) (*Profile, error) {
 	return p, nil
 }
 
-// LoadMany fetches multiple profiles based on current username/profile mappings.
-// Usernames mapping to no profile are ignored and absent from the returned results.
+// LoadMany fetches multiple profiles by current usernames.
+// Usernames associated with no profile are ignored and absent from the returned results.
 // Duplicate usernames are only returned once, and nil is returned if an error occurs.
 //
 // NB! Only a maximum of LoadManyMaxSize profiles may be fetched at once.

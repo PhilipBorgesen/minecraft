@@ -13,7 +13,7 @@ import (
 ********/
 
 // Model represents the player model type used by a profile.
-type Model int
+type Model byte
 
 const (
 	Steve Model = iota // Classic player model aka "Steve"
@@ -34,8 +34,8 @@ func (m Model) String() string {
 * PROFILE PROPERTIES *
 *********************/
 
-// ProfileProperties contains additional information associated with a Profile.
-type ProfileProperties struct {
+// Properties contains additional information associated with a Profile.
+type Properties struct {
 	skinURL string
 	capeURL string
 	model   Model
@@ -44,7 +44,7 @@ type ProfileProperties struct {
 // SkinURL returns a URL to the profile's custom skin texture if such one has been set.
 // If a skin has been set, the boolean return value will be true.
 // If no skin texture has been set for the profile, this method returns ("", false).
-func (pp *ProfileProperties) SkinURL() (url string, ok bool) {
+func (pp *Properties) SkinURL() (url string, ok bool) {
 
 	url = pp.skinURL
 	ok = url != ""
@@ -54,7 +54,7 @@ func (pp *ProfileProperties) SkinURL() (url string, ok bool) {
 // CapeURL returns a URL to the profile's cape texture if such one is associated.
 // If a cape is associated, the boolean return value will be true.
 // If no cape texture is associated with the profile, this method returns ("", false).
-func (pp *ProfileProperties) CapeURL() (url string, ok bool) {
+func (pp *Properties) CapeURL() (url string, ok bool) {
 
 	url = pp.capeURL
 	ok = url != ""
@@ -62,7 +62,7 @@ func (pp *ProfileProperties) CapeURL() (url string, ok bool) {
 }
 
 // Model returns the player model type used by the profile.
-func (pp *ProfileProperties) Model() Model {
+func (pp *Properties) Model() Model {
 
 	return pp.model
 }
@@ -73,7 +73,7 @@ func (pp *ProfileProperties) Model() Model {
 // If an error occurs, nil is returned instead of a ReadCloser.
 //
 // It is the client's responsibility to close the ReadCloser.
-func (pp *ProfileProperties) SkinReader() (io.ReadCloser, error) {
+func (pp *Properties) SkinReader() (io.ReadCloser, error) {
 
 	return readTexture(pp.skinURL, errNoSkin)
 }
@@ -84,7 +84,7 @@ func (pp *ProfileProperties) SkinReader() (io.ReadCloser, error) {
 // If an error occurs, nil is returned instead of a ReadCloser.
 //
 // It is the client's responsibility to close the ReadCloser.
-func (pp *ProfileProperties) CapeReader() (io.ReadCloser, error) {
+func (pp *Properties) CapeReader() (io.ReadCloser, error) {
 
 	return readTexture(pp.capeURL, errNoCape)
 }
@@ -96,17 +96,31 @@ func (pp *ProfileProperties) CapeReader() (io.ReadCloser, error) {
 // LoadProperties loads and returns the profile's skin, cape and model information.
 // On success, the result will be memoized in a thread safe manner to be returned on future calls to this method.
 // If an error occurs, nil is returned instead and the result is not memoized.
+//
 // A profile which was loaded by LoadWithProperties has this information preloaded.
 //
+// If the profile was loaded using a Store, if not already loaded that store will be used to load the properties.
+//
 // NB! For each profile, profile properties may only be requested once per minute.
-func (p *Profile) LoadProperties() (*ProfileProperties, error) {
+func (p *Profile) LoadProperties() (*Properties, error) {
 
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	if p.properties == nil {
 
-		loaded, err := LoadWithProperties(p.id)
+		var loaded *Profile
+		var err error
+
+		if c := p.cache; c != nil {
+
+			loaded, err = Store{c}.LoadWithProperties(p.id)
+
+		} else {
+
+			loaded, err = LoadWithProperties(p.id)
+		}
+
 		if err != nil {
 
 			return nil, err
@@ -119,7 +133,7 @@ func (p *Profile) LoadProperties() (*ProfileProperties, error) {
 }
 
 // Properties returns the profile's skin, cape and model information if loaded, otherwise nil.
-func (p *Profile) Properties() *ProfileProperties {
+func (p *Profile) Properties() *Properties {
 
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -157,14 +171,14 @@ func readTexture(url string, notFoundErr error) (_ io.ReadCloser, err error) {
 }
 
 // Map of property => parser pairs
-var propertyPopulators = map[string]func(base64 string, p *ProfileProperties) error{
+var propertyPopulators = map[string]func(base64 string, p *Properties) error{
 	"textures": populateTextures,
 }
 
 // Constructs and returns a property set based on a JSON array of properties
-func buildProperties(ps []interface{}) (*ProfileProperties, error) {
+func buildProperties(ps []interface{}) (*Properties, error) {
 
-	pp := new(ProfileProperties)
+	pp := new(Properties)
 
 	for _, p := range ps {
 
@@ -182,8 +196,8 @@ func buildProperties(ps []interface{}) (*ProfileProperties, error) {
 	return pp, nil
 }
 
-// Parses the "textures" property and adds its info to the ProfileProperties struct
-func populateTextures(enc string, pp *ProfileProperties) error {
+// Parses the "textures" property and adds its info to the Properties struct
+func populateTextures(enc string, pp *Properties) error {
 
 	bs, err := base64.StdEncoding.DecodeString(enc)
 	if err != nil {
