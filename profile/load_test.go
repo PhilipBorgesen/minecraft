@@ -112,7 +112,7 @@ func checkForErr(t *testing.T, err error, fn string) {
 
 	if err != nil {
 
-		t.Logf("%s returned error: %s", fn, err)
+		t.Errorf("%s returned error: %s", fn, err)
 
 		if _, tmr := err.(ErrTooManyRequests); tmr {
 
