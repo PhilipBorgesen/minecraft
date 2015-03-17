@@ -92,8 +92,8 @@ const (
 //  Alpha.String()    = "alpha"
 //  Beta.String()     = "beta"
 //
-//  Type("").String()  = "???" // Zero value
-//  Type("X").String() = "X"   // Unknown version types
+//  Type("").String() = "???" // Zero value
+//  Type(X).String()  = X     // Unknown version types
 func (t Type) String() string {
 
 	switch t {
