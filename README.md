@@ -10,7 +10,7 @@ At the time of writing it contains the following Go packages:
     and working with the reported version information. Most important this package
     reports the latest snapshot and release versions of Minecraft.
 
-Documentation can be found at https://godoc.org/github.com/PhilipRasmussen/minecraft.
+Documentation can be found at https://godoc.org/github.com/PhilipBorgesen/minecraft.
 
 TODOs & Ideas
 -------------
