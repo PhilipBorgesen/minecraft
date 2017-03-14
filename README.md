@@ -1,5 +1,5 @@
 # Overview
-This is a collection of Minecraft libraries written in Go.
+This is a collection of [SemVer](http://semver.org/spec/v2.0.0.html)-versioned Minecraft libraries written in Go.
 At the time of writing it contains the following Go packages:
 
   - `profile`, a binding for querying the public Mojang API for Minecraft profiles, supporting:
