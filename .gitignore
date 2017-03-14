@@ -1,0 +1,9 @@
+# macOS files
+.DS_Store
+
+# IntelliJ files
+/.idea
+*.iml
+
+# Golang binary files
+/pkg
