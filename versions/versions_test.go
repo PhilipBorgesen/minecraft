@@ -1,9 +1,7 @@
-package versions_test
+package versions
 
 import (
 	"testing"
-
-	. "github.com/PhilipRasmussen/minecraft/versions"
 )
 
 // Test that Load succeeds and that all returned Versions data is populated.

@@ -5,7 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/PhilipRasmussen/minecraft/profile"
+	"github.com/PhilipBorgesen/minecraft/profile"
 )
 
 // The following example shows how to retrieve and report all

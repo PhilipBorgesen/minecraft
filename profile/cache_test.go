@@ -1,12 +1,10 @@
-package profile_test
+package profile
 
 import (
 	"fmt"
 	"strings"
 	"testing"
 	"time"
-
-	. "github.com/PhilipRasmussen/minecraft/profile"
 )
 
 /************
