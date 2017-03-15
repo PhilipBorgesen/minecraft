@@ -14,19 +14,5 @@ Documentation can be found at https://godoc.org/github.com/PhilipBorgesen/minecr
 
 TODOs & Ideas
 -------------
-  - `profile`:
-    - Testing:
-      - Test code on profiles having a longer username history than one.
-      - Write automatic tests for handling profiles using the slim player model.
-      - Write automatic tests for handling profiles with no custom skin.
   - `profile/cache`, a package with a simple in-memory cache implementation of `profile.Cache`.
     - Once written, add reference in `profile` to package for an implementation example.
-
-License
--------
-Included libraries are open source dual licensed under MIT/GPL.
-
-  - GPL license: http://www.gnu.org/licenses/gpl.html
-  - MIT license: http://www.opensource.org/licenses/mit-license.php
-
-Copyright (c) 2016 Philip Børgesen
