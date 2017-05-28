@@ -1,5 +1,7 @@
 # Overview
-This is a collection of [SemVer](http://semver.org/spec/v2.0.0.html)-versioned Minecraft libraries written in Go.
+[![Travis](https://travis-ci.org/PhilipBorgesen/minecraft.svg?branch=master)](https://travis-ci.org/PhilipBorgesen/minecraft/branches#)
+
+gitThis is a collection of [SemVer](http://semver.org/spec/v2.0.0.html)-versioned Minecraft libraries written in Go.
 At the time of writing it contains the following Go packages:
 
   - `profile`, a binding for querying the public Mojang API for Minecraft profiles, supporting:
