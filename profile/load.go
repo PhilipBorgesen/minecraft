@@ -2,305 +2,354 @@ package profile
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/PhilipBorgesen/minecraft/internal"
 	"net/http"
+	"net/url"
 	"time"
 )
 
-/*********************
-* EXPORTED CONSTANTS *
-*********************/
-
-// The maximum number of profiles which may be requested at once using the LoadMany function.
+// The maximum number of profiles which may be requested at once using LoadMany.
 // If more are requested, the request may fail with a ErrMaxSizeExceeded error.
 const LoadManyMaxSize int = 100
 
-/*********************
-* EXPORTED FUNCTIONS *
-*********************/
-
-// Load fetches the profile currently associated with a username.
-// If an error occurs, nil is returned instead.
-func Load(username string) (*Profile, error) {
-
-	url := fmt.Sprintf(loadURL, username)
-	return load(url, username)
+// Load fetches the profile currently associated with username.
+// ctx must be non-nil. If no profile currently is associated with username,
+// Load returns ErrNoSuchProfile. If an error is returned, p will be nil.
+func Load(ctx context.Context, username string) (p *Profile, err error) {
+	if username == "" {
+		return nil, ErrNoSuchProfile
+	}
+	endpoint := fmt.Sprintf(loadURL, username)
+	return loadByName(ctx, endpoint)
 }
 
-// LoadAtTime fetches the profile associated with a username at the specified instant of time.
-// If an error occurs, nil is returned instead.
-func LoadAtTime(username string, tm time.Time) (*Profile, error) {
-
-	url := fmt.Sprintf(loadAtTimeURL, username, tm.Unix())
-	return load(url, username)
+// LoadAtTime fetches the profile associated with username at the specified instant of time.
+// ctx must be non-nil. If no profile was associated with username at the specified instant
+// of time, LoadAtTime returns ErrNoSuchProfile. If an error is returned, p will be nil.
+func LoadAtTime(ctx context.Context, username string, tm time.Time) (p *Profile, err error) {
+	if username == "" {
+		return nil, ErrNoSuchProfile
+	}
+	endpoint := fmt.Sprintf(loadAtTimeURL, username, tm.Unix())
+	return loadByName(ctx, endpoint)
 }
 
-// LoadByID fetches the profile identified by an ID.
-// If an error occurs, nil is returned instead.
-func LoadByID(id string) (*Profile, error) {
-
-	return LoadWithNameHistory(id)
+// Common implementation used by Load and LoadAtTime.
+func loadByName(ctx context.Context, endpoint string) (p *Profile, err error) {
+	j, err := internal.FetchJSON(ctx, client, endpoint)
+	if err == nil {
+		defer func() { // If JSON data isn't structured as expected
+			if r := recover(); r != nil {
+				err = &url.Error{Op: "Parse", URL: endpoint, Err: internal.ErrUnknownFormat}
+			}
+		}()
+		p, err = buildProfile(j.(map[string]interface{}), ErrNoSuchProfile)
+	} else {
+		err = transformError(err)
+	}
+	return
 }
 
-// LoadNameHistory fetches the profile identified by an ID.
-// If an error occurs, nil is returned instead.
-// As a bonus, profiles loaded by this function already have their name history preloaded.
-func LoadWithNameHistory(id string) (*Profile, error) {
+// LoadByID fetches the profile identified by id. ctx must be non-nil.
+// If no profile is identified by id, LoadByID returns ErrNoSuchProfile.
+// If an error is returned, p will be nil.
+func LoadByID(ctx context.Context, id string) (p *Profile, err error) {
+	return LoadWithNameHistory(ctx, id)
+}
 
-	var nsu error = ErrNoSuchID{id}
-
+// LoadNameHistory fetches the profile identified by id, incl. its name history.
+// ctx must be non-nil. If no profile is identified by id, LoadWithNameHistory
+// returns ErrNoSuchProfile. If an error is returned, p will be nil.
+func LoadWithNameHistory(ctx context.Context, id string) (p *Profile, err error) {
 	if id == "" {
-
-		return nil, nsu
+		return nil, ErrNoSuchProfile
 	}
-
-	url := fmt.Sprintf(loadWithNameHistoryURL, id)
-	j, err := getJSON(url, nsu)
-	if err != nil {
-
-		return nil, err
+	endpoint := fmt.Sprintf(loadWithNameHistoryURL, id)
+	j, err := internal.FetchJSON(ctx, client, endpoint)
+	if err == nil {
+		defer func() { // If JSON data isn't structured as expected
+			if r := recover(); r != nil {
+				err = &url.Error{Op: "Parse", URL: endpoint, Err: internal.ErrUnknownFormat}
+			}
+		}()
+		name, hist := buildHistory(j.([]interface{}))
+		p = &Profile{
+			ID:          id,
+			Name:        name,
+			NameHistory: hist,
+		}
+	} else {
+		err = transformError(err)
 	}
-
-	a := j.([]interface{})
-	name, hist := createHistory(a)
-
-	p := &Profile{
-		id:      id,
-		name:    name,
-		history: hist,
-	}
-
-	return p, nil
+	return
 }
 
-// LoadWithProperties fetches the profile identified by a ID.
-// If an error occurs, nil is returned instead.
-// As a bonus, profiles loaded by this function already have skin, cape and model information preloaded.
+// LoadWithProperties fetches the profile identified by a ID, incl. its properties.
+// ctx must be non-nil. If no profile is identified by id, LoadWithProperties
+// returns ErrNoSuchProfile. If an error is returned, p will be nil.
 //
 // NB! For each profile, profile properties may only be requested once per minute.
-func LoadWithProperties(id string) (*Profile, error) {
-
-	var nsu error = ErrNoSuchID{id}
-
+func LoadWithProperties(ctx context.Context, id string) (p *Profile, err error) {
 	if id == "" {
-
-		return nil, nsu
+		return nil, ErrNoSuchProfile
 	}
+	endpoint := fmt.Sprintf(loadWithPropertiesURL, id)
+	j, err := internal.FetchJSON(ctx, client, endpoint)
+	if err == nil {
+		defer func() { // If JSON data isn't structured as expected
+			if r := recover(); r != nil {
+				err = &url.Error{Op: "Parse", URL: endpoint, Err: internal.ErrUnknownFormat}
+				p = nil
+			}
+		}()
 
-	url := fmt.Sprintf(loadWithPropertiesURL, id)
-	j, err := getJSON(url, nsu)
-	if err != nil {
+		m := j.(map[string]interface{})
+		p, err = buildProfile(m, ErrNoSuchProfile)
+		if err != nil {
+			return
+		}
 
-		return nil, err
+		p.Properties, err = buildProperties(m["properties"].([]interface{}))
+		if err != nil {
+			// Let the entire loading fail even if just property construction fails.
+			// May always be changed later if this is too drastic.
+			p, err = nil, &url.Error{Op: "Parse", URL: endpoint, Err: err}
+		}
+	} else {
+		err = transformError(err)
 	}
-
-	p, err := buildProfile(j, nsu)
-	if err != nil {
-
-		return nil, err
-	}
-
-	m := j.(map[string]interface{})
-	p.properties, err = buildProperties(m["properties"].([]interface{}))
-	if err != nil {
-
-		// Let the entire loading fail even if just property construction failed
-		// May always be changed later if this is too drastic
-		return nil, err
-	}
-
-	return p, nil
+	return
 }
 
-// LoadMany fetches multiple profiles by current usernames.
+// LoadMany fetches multiple profiles by their currently associated usernames.
 // Usernames associated with no profile are ignored and absent from the returned results.
-// Duplicate usernames are only returned once, and nil is returned if an error occurs.
+// Duplicate usernames are only returned once, and ps will be nil if an error occurs.
+// ctx must be non-nil.
 //
 // NB! Only a maximum of LoadManyMaxSize profiles may be fetched at once.
-// If more are attempted loaded in the same operation an ErrMaxSizeExceeded error occurs.
-func LoadMany(username ...string) ([]*Profile, error) {
-
+// If more are attempted loaded in the same operation, an ErrMaxSizeExceeded error occurs.
+func LoadMany(ctx context.Context, username ...string) (ps []*Profile, err error) {
 	if len(username) > LoadManyMaxSize {
-
 		return nil, ErrMaxSizeExceeded{len(username)}
 	}
 
-	// Remove empty usernames. They are not accepted by the Mojang API.
-	var users []string
+	c := 0
+	var users [LoadManyMaxSize]string
 	for _, u := range username {
-
+		// Remove empty usernames. They are not accepted by the Mojang API.
 		if u != "" {
-
-			users = append(users, u)
+			users[c] = u
+			c++
 		}
 	}
 
-	// No need to request anything
-	if len(users) == 0 {
-
-		return nil, nil
+	if c == 0 {
+		return // No need to request anything
 	}
 
-	body, err := json.Marshal(users)
-	if err != nil {
-
-		return nil, err
-	}
-
-	j, err := postJSON(loadManyURL, body, nil)
-	if err != nil {
-
-		return nil, err
-	}
-
-	var res []*Profile
-	for _, p := range j.([]interface{}) {
-
-		pr, err := buildProfile(p, errDemo)
-		if err != nil {
-
-			// Skip demo accounts
-			if err == errDemo {
-
-				continue
+	j, err := internal.ExchangeJSON(ctx, client, loadManyURL, users[:c])
+	if err == nil {
+		defer func() { // If JSON data isn't structured as expected
+			if r := recover(); r != nil {
+				err = &url.Error{Op: "Parse", URL: loadManyURL, Err: internal.ErrUnknownFormat}
+				ps = nil
 			}
+		}()
 
-			// Otherwise fail
-			return nil, err
+		j := j.([]interface{})
+		ps = make([]*Profile, 0, len(j))
+
+		for _, p := range j {
+			var pr *Profile
+			pr, err = buildProfile(p.(map[string]interface{}), ErrNoSuchProfile)
+			if err != nil {
+				if err == ErrNoSuchProfile {
+					// Skip demo accounts
+					continue
+				}
+				ps = nil
+				return
+			}
+			ps = append(ps, pr)
 		}
-
-		res = append(res, pr)
+		err = nil // In case last profile was a demo profile
+	} else {
+		err = transformError(err)
 	}
-
-	return res, nil
+	return
 }
 
-/************
-* INTERNALS *
-************/
+///////////////////
 
-const (
-	loadURL                = "https://api.mojang.com/users/profiles/minecraft/%s"
-	loadAtTimeURL          = "https://api.mojang.com/users/profiles/minecraft/%s?at=%d"
-	loadWithNameHistoryURL = "https://api.mojang.com/user/profiles/%s/names"
-	loadWithPropertiesURL  = "https://sessionserver.mojang.com/session/minecraft/profile/%s"
-	loadManyURL            = "https://api.mojang.com/profiles/minecraft"
-)
-
-// Common implementation used by Load and LoadAtTime.
-func load(url, user string) (*Profile, error) {
-
-	var nsu error = ErrNoSuchUser{user}
-
-	if user == "" {
-
-		return nil, nsu
+func transformError(src error) error {
+	if e, ok := internal.UnwrapErrFailedRequest(src); ok {
+		if e.StatusCode == 204 {
+			return ErrNoSuchProfile
+		} else if e.ErrorCode == "TooManyRequestsException" {
+			return ErrTooManyRequests
+		}
 	}
-
-	j, err := getJSON(url, nsu)
-	if err != nil {
-
-		return nil, err
-	}
-
-	p, err := buildProfile(j, nsu)
-	if err != nil {
-
-		return nil, err
-	}
-
-	return p, nil
+	return src
 }
 
-// Common implementation used to make and fill out the basics of a Profile.
-// j should be a map[string]interface{} with string values for the keys "id" and "name".
-// If available, "demo" and "legacy" are expected to map to boolean values.
+var emptyHist = make([]PastName, 0, 0)
+
+var client = &http.Client{}
+
+// buildProfile makes and fills out the basics of a Profile.
+// m MUST contain string values for the keys "id" and "name".
+// If available, "demo" and "legacy" MUST map to boolean values.
 // demoErr is the error to return if the profile is a demo account.
-func buildProfile(j interface{}, demoErr error) (*Profile, error) {
-
-	m := j.(map[string]interface{})
-
+// If an error is returned, p will be nil.
+func buildProfile(m map[string]interface{}, demoErr error) (*Profile, error) {
 	// Ensure demo accounts are not returned
 	if t, demo := m["demo"]; demo && t.(bool) {
-
 		return nil, demoErr
 	}
 
 	p := &Profile{
-		id:   m["id"].(string),
-		name: m["name"].(string),
+		ID:   m["id"].(string),
+		Name: m["name"].(string),
 	}
 
 	// Legacy Minecraft accounts have not migrated to Mojang accounts.
 	// To change your Minecraft username you need to have a Mojang account.
 	// Hence "legacy" flags a profile as having no name history.
 	if t, legacy := m["legacy"]; legacy && t.(bool) {
-
-		p.history = emptyHist
+		p.NameHistory = emptyHist
 	}
 
 	return p, nil
 }
 
-// Common implementation used to make GET requests to the public Mojang API.
-// url is what URL to request.
-// ncErr is the error to return if a 204 No Content response is received.
-// If ncErr is nil, no error is returned on a 204 No Content response.
-func getJSON(url string, ncErr error) (interface{}, error) {
-
-	// Make request
-	resp, err := http.Get(url)
-	if err != nil {
-
-		return nil, err
+// buildHistory creates a username history (previous username first, original username
+// last) and returns it along with the current username.
+// a is an array of maps containing "name" and (possibly) "changedToAt" keys.
+// The "name" values MUST be string and the "changedToAt" values MUST be integer.
+// A "changedToAt" field is the "until" field of the previous PastName struct.
+func buildHistory(arr []interface{}) (name string, hist []PastName) {
+	if len(arr) == 0 {
+		return
 	}
-	defer resp.Body.Close()
 
-	return parseJSON(resp, ncErr)
+	hist = make([]PastName, len(arr)-1)
+
+	h := len(hist) - 1
+	for i, v := range arr {
+		m := v.(map[string]interface{})
+
+		if v, ok := m["changedToAt"]; ok && i > 0 {
+			hist[h+1].Until = msToTime(int64(v.(float64)))
+		}
+
+		if i == len(hist) {
+			name = m["name"].(string)
+			break
+		} else {
+			hist[h].Name = m["name"].(string)
+			h--
+		}
+	}
+
+	return
 }
 
-// Common implementation used to make POST requests to the public Mojang API.
-// url is what URL to request.
-// ncErr is the error to return if a 204 No Content response is received.
-// If ncErr is nil, no error is returned on a 204 No Content response.
-func postJSON(url string, body []byte, ncErr error) (interface{}, error) {
-
-	// Make request
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
-	if err != nil {
-
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	return parseJSON(resp, ncErr)
+func msToTime(ms int64) time.Time {
+	s := ms / 1000
+	ns := (ms - s*1000) * 1000000
+	return time.Unix(s, ns)
 }
 
-// Common implementation for parsing a JSON response from the public Mojang API.
-// ncErr is the error to return if a 204 No Content response is received.
-// If ncErr is nil, no error is returned on a 204 No Content response.
-func parseJSON(resp *http.Response, ncErr error) (interface{}, error) {
+// buildProperties returns a property set based on a JSON array of properties.
+// props MUST consist of map[string]interface{} maps, each map containing string
+// values for the keys "name" and "value".
+func buildProperties(props []interface{}) (ps *Properties, err error) {
+	ps = new(Properties)
+	for _, p := range props {
+		prop := p.(map[string]interface{})
+		name := prop["name"].(string)
+		value := prop["value"].(string) // base64 encoded
 
-	// Profile exists?
-	if resp.StatusCode == 204 && ncErr != nil {
-
-		return nil, ncErr
+		if parser, ok := propertyPopulators[name]; ok {
+			err = parser(value, ps)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
+	return ps, nil
+}
 
-	// Decode JSON
-	var j interface{}
-	err := json.NewDecoder(resp.Body).Decode(&j)
+// Map of property name => value parser pairs.
+// Each parser takes the base64 encoded value, decodes it, and populates p with
+// the parsed data.
+var propertyPopulators = map[string]func(base64 string, p *Properties) error{
+	"textures": populateTextures,
+}
+
+// Parses the "textures" property and adds its info to the Properties struct
+func populateTextures(enc string, props *Properties) (err error) {
+	bs, err := base64.StdEncoding.DecodeString(enc)
 	if err != nil {
-
-		return nil, err
+		return
 	}
 
-	// Check for JSON errors
-	if err := getJSONError(j); err != nil {
-
-		return nil, err
+	var j map[string]interface{}
+	err = json.NewDecoder(bytes.NewBuffer(bs)).Decode(&j)
+	if err != nil {
+		return
 	}
 
-	return j, nil
+	ts := j["textures"].(map[string]interface{})
+
+	// Set skin URL and skin Model if present
+	if s, set := ts["SKIN"]; set {
+		skin := s.(map[string]interface{})
+		props.SkinURL = skin["url"].(string)
+
+		props.Model = Steve // Steve unless explicitly overridden
+		if s, set := skin["metadata"]; set {
+			skinMeta := s.(map[string]interface{})
+			if m, set := skinMeta["model"]; set && m.(string) == "slim" {
+				props.Model = Alex
+			}
+		}
+	} else {
+		// Default skin and model depends on player ID
+		props.Model = defaultModel(j["profileId"].(string))
+	}
+
+	// Set cape URL
+	if c, ok := ts["CAPE"]; ok {
+		cape := c.(map[string]interface{})
+		props.CapeURL = cape["url"].(string)
+	}
+
+	return nil
+}
+
+// Implementation inspired by:
+// 	https://git.io/vSF4a
+// Credit goes to Minecrell for compacting Java's 'uuid.hashCode() & 1' into the below.
+func defaultModel(uuid string) Model {
+	if (isEven(uuid[7]) != isEven(uuid[16+7])) != (isEven(uuid[15]) != isEven(uuid[16+15])) {
+		return Alex
+	} else {
+		return Steve
+	}
+}
+
+func isEven(c uint8) bool {
+	switch {
+	case c >= '0' && c <= '9':
+		return (c & 1) == 0
+	case c >= 'a' && c <= 'f':
+		return (c & 1) == 1
+	default:
+		panic("Invalid digit '" + string(c) + "'")
+	}
 }

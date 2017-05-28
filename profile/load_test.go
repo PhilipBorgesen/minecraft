@@ -1,355 +1,858 @@
 package profile
 
 import (
-	"fmt"
-	"strings"
+	"errors"
+	"reflect"
 	"testing"
 	"time"
+	"io"
+	"encoding/base64"
+	"net/http"
+	"context"
+	"github.com/PhilipBorgesen/minecraft/internal"
+	"net/url"
 )
 
-/************
-* TEST DATA *
-************/
-
-// 1. known account of author
-const (
-	nergName = "Nergalic"
-	nergID   = "087cc153c3434ff7ac497de1569affa1"
-	// Model is expected to be Steve
-	// Cape is not expected
-)
-
-var nergHist = []pastName{{"GeneralSezuan", time.Unix(1423047705, 0)}}
-
-// 2. known account of author
-const (
-	breeName = "BreeSakana"
-	breeID   = "d9a5b542ce88442aaab38ec13e6c7773"
-)
-
-var breeHist = []pastName{}
-
-// akronman1, the holder of the 1.000.000th-Minecraft-copy cape
-// Profile may in theory be deleted at any moment...
-//
-// TODO: Substitute for a cape profile under author's control
-const capeID = "d90b68bc81724329a047f1186dcd4336"
-
-/******************
-* TEST STRUCTURES *
-******************/
-
-// Username --> profile info
-// Must maintain consistency with the other test structures
-var loadTestUsers = map[string]user{
-	nergName:                  {nergID, nergName},
-	strings.ToUpper(nergName): {nergID, nergName}, // Casing should not matter
-	breeName:                  {breeID, breeName},
+var testBuildProfileInput = [...]struct {
+	m          map[string]interface{}
+	demoErr    error
+	expProfile *Profile
+	expErr     error
+}{
+	{
+		m: map[string]interface{}{
+			"demo": true,
+		},
+		demoErr:    testError,
+		expProfile: nil,
+		expErr:     testError,
+	},
+	{
+		m: map[string]interface{}{
+			"id":   "087cc153c3434ff7ac497de1569affa1",
+			"name": "Nergalic",
+			"demo": true,
+		},
+		demoErr:    testError,
+		expProfile: nil,
+		expErr:     testError,
+	},
+	{
+		m: map[string]interface{}{
+			"id":   "cabefc91b5df4c87886a6c604da2e46f",
+			"name": "AxeLaw",
+			"demo": false,
+		},
+		demoErr: testError,
+		expProfile: &Profile{
+			ID:   "cabefc91b5df4c87886a6c604da2e46f",
+			Name: "AxeLaw",
+		},
+		expErr: nil,
+	},
+	{
+		m: map[string]interface{}{
+			"id":   "087cc153c3434ff7ac497de1569affa1",
+			"name": "Nergalic",
+		},
+		demoErr: testError,
+		expProfile: &Profile{
+			ID:   "087cc153c3434ff7ac497de1569affa1",
+			Name: "Nergalic",
+		},
+		expErr: nil,
+	},
+	{
+		m: map[string]interface{}{
+			"id":     "087cc153c3434ff7ac497de1569affa1",
+			"name":   "Nergalic",
+			"legacy": false,
+		},
+		demoErr: testError,
+		expProfile: &Profile{
+			ID:   "087cc153c3434ff7ac497de1569affa1",
+			Name: "Nergalic",
+		},
+		expErr: nil,
+	},
+	{
+		m: map[string]interface{}{
+			"id":     "087cc153c3434ff7ac497de1569affa1",
+			"name":   "Nergalic",
+			"legacy": true,
+		},
+		demoErr: testError,
+		expProfile: &Profile{
+			ID:          "087cc153c3434ff7ac497de1569affa1",
+			Name:        "Nergalic",
+			NameHistory: emptyHist,
+		},
+		expErr: nil,
+	},
 }
 
-// Should match loadTestUsers without duplicates
-var loadManyTestRes = []string{breeName, nergName}
-
-// Keys should match entries in loadTestUsers
-var pastNames = map[string][]pastName{
-	breeName: breeHist,
-	nergName: nergHist,
-
-	// TODO: Add profiles with longer name history to verify order
-}
-
-/*************
-* TEST TYPES *
-*************/
-
-type user struct {
-	id   string
-	name string
-}
-
-type pastName struct {
-	name  string
-	until time.Time
-}
-
-type propertySet struct {
-
-	// Do not check their values, simply check their presence
-	skinURL, capeURL *bool // expected skin and cape (if any)
-
-	model *Model // expected model (if any)
-
-	user string // expect profile to match loadTestUsers[user]
-}
-
-/**********
-* HELPERS *
-**********/
-
-var oneSec time.Duration = time.Unix(1, 0).Sub(time.Unix(0, 0))
-
-// Verifies the basics of a loaded profile, i.e. that no errors happened and that
-// the ID and name attributes are as expected.
-func assertBasicInfo(t *testing.T, fn string, err error, got *Profile, expect user) {
-
-	checkForErr(t, err, fn)
-
-	if id := got.ID(); id != expect.id {
-
-		t.Errorf("%s.ID() = %q; want %q", fn, id, expect.id)
-	}
-	if name := got.Name(); name != expect.name {
-
-		t.Errorf("%s.Name() = %q; want %q", fn, name, expect.name)
-	}
-}
-
-// Verifies that no error occurred, otherwise reports it.
-// err is the error, fn is the function invocation which returned the error.
-func checkForErr(t *testing.T, err error, fn string) {
-
-	if err != nil {
-
-		t.Errorf("%s returned error: %s", fn, err)
-
-		if _, tmr := err.(ErrTooManyRequests); tmr {
-
-			t.Log("Likely problem: Test has been executed too frequently. Wait 1-10 minutes before retrying.")
+func TestBuildProfile(t *testing.T) {
+	for _, tc := range testBuildProfileInput {
+		profile, err := buildProfile(tc.m, tc.demoErr)
+		if !reflect.DeepEqual(profile, tc.expProfile) || err != tc.expErr {
+			t.Errorf(
+				"\n"+
+					"buildProfile(%#v, %s)\n"+
+					"was  %#v, %s\n"+
+					"want %#v, %s",
+				tc.m, tc.demoErr,
+				profile, p(err),
+				tc.expProfile, p(tc.expErr),
+			)
 		}
-
-		t.FailNow()
 	}
 }
 
-/*************
-* TEST CASES *
-*************/
+var testBuildHistoryInput = [...]struct {
+	arr     []interface{}
+	expName string
+	expHist []PastName
+}{
+	{
+		arr:     nil,
+		expName: "",
+		expHist: nil,
+	},
+	{
+		arr:     []interface{}{},
+		expName: "",
+		expHist: nil,
+	},
+	{
+		arr: []interface{}{
+			map[string]interface{}{
+				"name": "A",
+			},
+		},
+		expName: "A",
+		expHist: emptyHist,
+	},
+	{
+		arr: []interface{}{
+			map[string]interface{}{
+				"name": "B",
+			},
+			map[string]interface{}{
+				"name":        "A",
+				"changedToAt": float64(1423047705000),
+			},
+		},
+		expName: "A",
+		expHist: []PastName{
+			{
+				Name:  "B",
+				Until: msToTime(1423047705000),
+			},
+		},
+	},
+	{
+		arr: []interface{}{
+			map[string]interface{}{
+				"name": "C",
+			},
+			map[string]interface{}{
+				"name":        "B",
+				"changedToAt": float64(1000047705000),
+			},
+			map[string]interface{}{
+				"name":        "A",
+				"changedToAt": float64(1423047705000),
+			},
+		},
+		expName: "A",
+		expHist: []PastName{
+			{
+				Name:  "B",
+				Until: msToTime(1423047705000),
+			},
+			{
+				Name:  "C",
+				Until: msToTime(1000047705000),
+			},
+		},
+	},
+}
 
-// Test that the correct ID and case-corrected name gets loaded
+func TestBuildHistory(t *testing.T) {
+	for _, tc := range testBuildHistoryInput {
+		name, hist := buildHistory(tc.arr)
+		if name != tc.expName || !reflect.DeepEqual(hist, tc.expHist) {
+			t.Errorf(
+				"\n"+
+					"buildHistory(%#v)\n"+
+					"was  %q, %#v\n"+
+					"want %q, %#v",
+				tc.arr,
+				name, hist,
+				tc.expName, tc.expHist,
+			)
+		}
+	}
+}
+
+func TestMsToTime(t *testing.T) {
+	const s2ms int64 = 1000
+	const ms2ns int64 = 1000 * 1000
+
+	t1 := time.Unix(1423047705, 123*ms2ns)
+	ms := t1.Unix()*s2ms + int64(t1.Nanosecond())/ms2ns
+	t2 := msToTime(ms)
+
+	if !t1.Equal(t2) {
+		t.Errorf("msToTime(%s) was %s; want %s", t1, t2, t1)
+	}
+}
+
+func TestIsEven(t *testing.T) {
+	for dec, hex := range [...]uint8{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'} {
+		expEven := false
+		if dec%2 == 0 {
+			expEven = true
+		}
+		if even := isEven(hex); even != expEven {
+			t.Errorf("isEven(%q) was %t; want %t", hex, even, expEven)
+		}
+	}
+}
+
+var testDefaultModelInput = [...]struct {
+	uuid     string
+	expModel Model
+}{
+	{
+		uuid:     "087cc153c3434ff7ac497de1569affa1", // Nergalic
+		expModel: Steve,
+	},
+	{
+		uuid:     "3fe136c0cd434f7783fc94b9b86eed6d", // Feathertail
+		expModel: Alex,
+	},
+}
+
+func TestDefaultModel(t *testing.T) {
+	for _, tc := range testDefaultModelInput {
+		if model := defaultModel(tc.uuid); model != tc.expModel {
+			t.Errorf("defaultModel(%q) was %s; want %s", tc.uuid, model, tc.expModel)
+		}
+	}
+}
+
+var testPopulateTexturesInput = [...]struct {
+	enc string
+	expProperties *Properties
+	expErr error
+}{
+	{
+		enc: "!notBase64",
+		expProperties: &Properties{},
+		expErr: base64.CorruptInputError(0),
+	},
+	{
+		enc: "",
+		expProperties: &Properties{},
+		expErr: io.EOF,
+	},
+	{
+		enc: "eyJ0aW1lc3RhbXAiOjE0OTM4NzUyMDcyMDYsInByb2ZpbGVJZCI6ImQ5MGI2OGJjODE3MjQzMjlhMDQ3ZjExODZkY2Q0MzM2IiwicHJvZmlsZU5hbWUiOiJha3Jvbm1hbjEiLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzE3YTQxYzdhMzE1ODIxZTM2ZWU4YzdjOGMzOTQ3MTc0ZTQxYjU1MmViNDE2OGI3MTI3YzJkNWI4MmZhY2UwIn0sIkNBUEUiOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9lYzgwYTIyNWIxNDVjODEyYTZlZjFjYTI5YWYwZjNlYmYwMjE2Mzg3NGQxYTY2ZTUzYmFjOTk5NjUyMjVlMCJ9fX0=",
+		expProperties: &Properties{
+			SkinURL:"http://textures.minecraft.net/texture/317a41c7a315821e36ee8c7c8c3947174e41b552eb4168b7127c2d5b82face0",
+			CapeURL:"http://textures.minecraft.net/texture/ec80a225b145c812a6ef1ca29af0f3ebf02163874d1a66e53bac99965225e0",
+			Model: Steve,
+		},
+	},
+	{
+		enc: "eyJ0aW1lc3RhbXAiOjE0OTM4NzUwMTAxODEsInByb2ZpbGVJZCI6ImNhYmVmYzkxYjVkZjRjODc4ODZhNmM2MDRkYTJlNDZmIiwicHJvZmlsZU5hbWUiOiJBeGVMYXciLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZDcyZDliMDBmM2Y2NDk0NjA3ZDIwZTU1N2U3ZjFiMjc2ZTczODZiYmZlNjk2NDliZTg3YmVjOGM0NDhkIn19fQ==",
+		expProperties: &Properties{
+			SkinURL: "http://textures.minecraft.net/texture/d72d9b00f3f6494607d20e557e7f1b276e7386bbfe69649be87bec8c448d",
+			CapeURL: "",
+			Model: Steve,
+		},
+	},
+	{
+		enc: "eyJ0aW1lc3RhbXAiOjE0OTM4NzcwNzE4NzAsInByb2ZpbGVJZCI6IjM2ZGNjN2E4M2NhMDQzNzI4NjU3ODI4MTg1ODZjYjJjIiwicHJvZmlsZU5hbWUiOiJTYWt1cmFCZWxsIiwidGV4dHVyZXMiOnsiU0tJTiI6eyJtZXRhZGF0YSI6eyJtb2RlbCI6InNsaW0ifSwidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9iYzJlMTc1MGMwNGMxNWU1YjdiMWYyYmFmZmEzNzEyMTM0ZmFmNzc0NGM0MTcyMzUxN2I1OTYwOGU0Yzk1NjgifX19",
+		expProperties: &Properties{
+			SkinURL: "http://textures.minecraft.net/texture/bc2e1750c04c15e5b7b1f2baffa3712134faf7744c41723517b59608e4c9568",
+			CapeURL: "",
+			Model: Alex,
+		},
+	},
+	{
+		enc: "eyJ0aW1lc3RhbXAiOjE0OTM4Nzc4NTc0NTYsInByb2ZpbGVJZCI6ImVjNTYxNTM4ZjNmZDQ2MWRhZmY1MDg2YjIyMTU0YmNlIiwicHJvZmlsZU5hbWUiOiJBbGV4IiwidGV4dHVyZXMiOnt9fQ==",
+		expProperties: &Properties {
+			SkinURL: "",
+			CapeURL: "",
+			Model: Steve,
+		},
+	},
+}
+
+func TestPopulateTextures(t *testing.T) {
+	for _, tc := range testPopulateTexturesInput {
+		var p Properties
+		err := populateTextures(tc.enc, &p)
+		if !reflect.DeepEqual(&p, tc.expProperties) || err != tc.expErr {
+			t.Errorf(
+				"populateTextures(%q, Properties) produced result:\n" +
+				"      %#v, %s\n" +
+				"want: %#v, %s",
+				tc.enc,
+				&p, err,
+				tc.expProperties, tc.expErr,
+			)
+		}
+	}
+}
+
+var testBuildPropertiesInput = [...]struct {
+	props []interface{}
+	expProperties *Properties
+	expErr error
+}{
+	{
+		props: []interface{} {},
+		expProperties: &Properties{},
+	},
+	{
+		props: []interface{} {
+			map[string]interface{} {
+				"name": "nonExistingProperty",
+				"value": "dummy",
+			},
+		},
+		expProperties: &Properties{},
+	},
+	{
+		props: []interface{} {
+			map[string]interface{} {
+				"name": "textures",
+				"value": "!notBase64",
+			},
+		},
+		expProperties: nil,
+		expErr: base64.CorruptInputError(0),
+	},
+	{
+		props: []interface{} {
+			map[string]interface{} {
+				"name": "textures",
+				"value": "eyJ0aW1lc3RhbXAiOjE0OTM4NzUyMDcyMDYsInByb2ZpbGVJZCI6ImQ5MGI2OGJjODE3MjQzMjlhMDQ3ZjExODZkY2Q0MzM2IiwicHJvZmlsZU5hbWUiOiJha3Jvbm1hbjEiLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMzE3YTQxYzdhMzE1ODIxZTM2ZWU4YzdjOGMzOTQ3MTc0ZTQxYjU1MmViNDE2OGI3MTI3YzJkNWI4MmZhY2UwIn0sIkNBUEUiOnsidXJsIjoiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9lYzgwYTIyNWIxNDVjODEyYTZlZjFjYTI5YWYwZjNlYmYwMjE2Mzg3NGQxYTY2ZTUzYmFjOTk5NjUyMjVlMCJ9fX0=",
+			},
+		},
+		expProperties: &Properties{
+			SkinURL:"http://textures.minecraft.net/texture/317a41c7a315821e36ee8c7c8c3947174e41b552eb4168b7127c2d5b82face0",
+			CapeURL:"http://textures.minecraft.net/texture/ec80a225b145c812a6ef1ca29af0f3ebf02163874d1a66e53bac99965225e0",
+			Model: Steve,
+		},
+	},
+	// Other cases:
+	// - Multiple properties
+	// - Same property appearing twice
+	// -
+}
+
+func TestBuildProperties(t *testing.T) {
+	for _, tc := range testBuildPropertiesInput {
+		ps, err := buildProperties(tc.props)
+		if !reflect.DeepEqual(ps, tc.expProperties) || err != tc.expErr {
+			t.Errorf(
+				"buildProperties(%#v)\n" +
+					"was:  %#v, %s\n" +
+					"want: %#v, %s",
+				tc.props,
+				ps, err,
+				tc.expProperties, tc.expErr,
+			)
+		}
+	}
+}
+
+var testLoadInput = [...]struct {
+	username string
+	transport http.RoundTripper
+	expProfile *Profile
+	expErr error
+} {
+	{
+		username: "",
+		transport: nil,
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		username: "doesNotExist",
+		transport: errorTransport{
+			&internal.ErrFailedRequest{
+				StatusCode: 204,
+			},
+		},
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		username: "unexpectedFormat",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: nil,
+		expErr: &url.Error{
+			Op: "Parse",
+			URL: "https://api.mojang.com/users/profiles/minecraft/unexpectedFormat",
+			Err: internal.ErrUnknownFormat,
+		},
+	},
+	{
+		username: "nergalic",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile {
+			Name: "Nergalic",
+			ID: "087cc153c3434ff7ac497de1569affa1",
+		},
+		expErr: nil,
+	},
+}
+
 func TestLoad(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	for n, expect := range loadTestUsers {
-
-		got, err := Load(n)
-		assertBasicInfo(t, fmt.Sprintf("Load(%q)", n), err, got, expect)
+	for _, tc := range testLoadInput {
+		client.Transport = tc.transport
+		profile, err := Load(context.Background(), tc.username)
+		if !reflect.DeepEqual(profile, tc.expProfile) || !reflect.DeepEqual(err, tc.expErr) {
+			t.Errorf(
+				"Load(ctx, %q)\n" +
+					" was: %#v, %s\n" +
+					"want: %#v, %s",
+				tc.username,
+				profile, p(err),
+				tc.expProfile, p(tc.expErr),
+			)
+		}
 	}
 }
 
-// Test that the correct ID and case-corrected name gets loaded for past names
+func TestLoad_ContextUsed(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
+
+	ctx, _ := context.WithCancel(context.Background())
+	ct := CtxStoreTransport{}
+
+	client.Transport = &ct
+	Load(ctx, "nergalic")
+
+	if ct.Context != ctx {
+		t.Error("Load(ctx, \"nergalic\") didn't pass context to underlying http.Client")
+	}
+}
+
+var testLoadAtTimeInput = [...]struct {
+	username string
+	time time.Time
+	transport http.RoundTripper
+	expProfile *Profile
+	expErr error
+} {
+	{
+		username: "",
+		time: time.Unix(0, 0),
+		transport: nil,
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		username: "doesNotExist",
+		time: time.Unix(0, 0),
+		transport: errorTransport{
+			&internal.ErrFailedRequest{
+				StatusCode: 204,
+			},
+		},
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		username: "unexpectedFormat",
+		time: time.Unix(1337, 564),
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: nil,
+		expErr: &url.Error{
+			Op: "Parse",
+			URL: "https://api.mojang.com/users/profiles/minecraft/unexpectedFormat?at=1337",
+			Err: internal.ErrUnknownFormat,
+		},
+	},
+	{
+		username: "GeneralSezuan",
+		time: time.Unix(0, 0),
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile {
+			Name: "Nergalic",
+			ID: "087cc153c3434ff7ac497de1569affa1",
+		},
+		expErr: nil,
+	},
+}
+
 func TestLoadAtTime(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	for n, hist := range pastNames {
-
-		expect := loadTestUsers[n]
-
-		for _, p := range hist {
-
-			tmfmt := p.until.Format(time.RFC3339)
-
-			got, err := LoadAtTime(p.name, p.until)
-			assertBasicInfo(t, fmt.Sprintf("LoadAtTime(%q, %s)", p.name, tmfmt), err, got, expect)
+	for _, tc := range testLoadAtTimeInput {
+		client.Transport = tc.transport
+		profile, err := LoadAtTime(context.Background(), tc.username, tc.time)
+		if !reflect.DeepEqual(profile, tc.expProfile) || !reflect.DeepEqual(err, tc.expErr) {
+			t.Errorf(
+				"LoadAtTime(ctx, %q, %s)\n" +
+					" was: %#v, %s\n" +
+					"want: %#v, %s",
+				tc.username, tc.time,
+				profile, p(err),
+				tc.expProfile, p(tc.expErr),
+			)
 		}
 	}
 }
 
-// No profile should be found for these usernames at these time instants.
-func TestLoadAtTimeFailure(t *testing.T) {
+func TestLoadAtTime_ContextUsed(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	for n, hist := range pastNames {
+	ctx, _ := context.WithCancel(context.Background())
+	ct := CtxStoreTransport{}
 
-		for _, p := range hist {
+	client.Transport = &ct
+	LoadAtTime(ctx, "nergalic", time.Now())
 
-			p.until = p.until.Add(oneSec)
-			tmfmt := p.until.Format(time.RFC3339)
-
-			got, err := LoadAtTime(p.name, p.until)
-
-			if _, nsp := err.(ErrNoSuchUser); !nsp {
-
-				checkForErr(t, err, fmt.Sprintf("LoadAtTime(%q, %s)", p.name, tmfmt))
-
-				t.Errorf("LoadAtTime(%q, %s) = %s; want ErrNoSuchUser error", n, tmfmt, got)
-			}
-		}
+	if ct.Context != ctx {
+		t.Error("LoadAtTime(ctx, \"nergalic\", time.Now()) didn't pass context to underlying http.Client")
 	}
 }
 
-// Verify that name histories are reported with expected stats and in ascending order.
-// Also verify that LoadWithNameHistory actually preloads the profile's name history
-//
-// TODO: Supply test samples to verify ascending order
+var testLoadWithNameHistoryInput = [...]struct {
+	id string
+	transport http.RoundTripper
+	expProfile *Profile
+	expErr error
+} {
+	{
+		id: "",
+		transport: nil,
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		id: "00000000000000000000000000000000", // Doesn't exist
+		transport: errorTransport{
+			&internal.ErrFailedRequest{
+				StatusCode: 204,
+			},
+		},
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		id: "unexpectedFormat",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: nil,
+		expErr: &url.Error{
+			Op: "Parse",
+			URL: "https://api.mojang.com/user/profiles/unexpectedFormat/names",
+			Err: internal.ErrUnknownFormat,
+		},
+	},
+	{
+		id: "087cc153c3434ff7ac497de1569affa1",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile {
+			Name: "Nergalic",
+			ID: "087cc153c3434ff7ac497de1569affa1",
+			NameHistory: []PastName {
+				{
+					Name: "GeneralSezuan",
+					Until: msToTime(1423047705000),
+				},
+			},
+		},
+		expErr: nil,
+	},
+}
+
 func TestLoadWithNameHistory(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	for n, hist := range pastNames {
-
-		expect := loadTestUsers[n]
-		fn := fmt.Sprintf("LoadWithNameHistory(%q)", expect.id)
-
-		got, err := LoadWithNameHistory(expect.id)
-
-		if got.NameHistory() == nil {
-
-			t.Errorf("%s.NameHistory() = nil; should already be loaded", fn)
-		}
-
-		assertBasicInfo(t, fn, err, got, expect)
-
-		// Test name history for correctness and ascending order
-		h, err := got.LoadNameHistory()
-
-		// Never ought to happen
-		checkForErr(t, err, fn)
-
-		var nameMatch, timeMatch bool
-		for i, p := range hist {
-
-			nameMatch = h[i].Name() == p.name
-			if !nameMatch {
-
-				t.Errorf("%s.LoadNameHistory()[%d].Name() = %q; want %q", fn, i, h[i].Name(), p.name)
-				continue
-			}
-
-			timeMatch = h[i].Until() == p.until
-			if !timeMatch {
-
-				t.Errorf("%s.LoadNameHistory()[%d].Until() = %s; want %s",
-					fn, i, h[i].Until().Format(time.RFC3339), p.until.Format(time.RFC3339))
-			}
+	for _, tc := range testLoadWithNameHistoryInput {
+		client.Transport = tc.transport
+		profile, err := LoadByID(context.Background(), tc.id) // Wrapper method used to test that as well
+		if !reflect.DeepEqual(profile, tc.expProfile) || !reflect.DeepEqual(err, tc.expErr) {
+			t.Errorf(
+				"LoadWithNameHistory(ctx, %q)\n" +
+					" was: %#v, %s\n" +
+					"want: %#v, %s",
+				tc.id,
+				profile, p(err),
+				tc.expProfile, p(tc.expErr),
+			)
 		}
 	}
 }
 
-// Verify that:
-// 1) LoadWithProperties successfully loads a profile with correct name and ID
-// 2) LoadWithProperties preloads properties
-// 3) Skins are handled successfully, a) present or b) not
-// 4) Model are handled successfully, a) present or b) not (Alex/Steve)
-// 5) Capes are handled successfully, b) present or b) not
-//
-// TODO: 3b, 4a
+func TestLoadWithNameHistory_ContextUsed(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
+
+	ctx, _ := context.WithCancel(context.Background())
+	ct := CtxStoreTransport{}
+
+	client.Transport = &ct
+	LoadByID(ctx, "dummy") // Wrapper method used to test that as well
+
+	if ct.Context != ctx {
+		t.Error("LoadWithNameHistory(ctx, \"dummy\") didn't pass context to underlying http.Client")
+	}
+}
+
+var testLoadWithPropertiesInput = [...]struct {
+	id string
+	transport http.RoundTripper
+	expProfile *Profile
+	expErr error
+} {
+	{
+		id: "",
+		transport: nil,
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		id: "00000000000000000000000000000000", // Doesn't exist
+		transport: errorTransport{
+			&internal.ErrFailedRequest{
+				StatusCode: 204,
+			},
+		},
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		id: "fictiveDemo",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: nil,
+		expErr: ErrNoSuchProfile,
+	},
+	{
+		id: "noSkinAndBadUUID",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: nil,
+		expErr: &url.Error{
+			Op: "Parse",
+			URL: "https://sessionserver.mojang.com/session/minecraft/profile/noSkinAndBadUUID",
+			Err: internal.ErrUnknownFormat,
+		},
+	},
+	{
+		id: "badProperties",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: nil,
+		expErr: &url.Error{
+			Op: "Parse",
+			URL: "https://sessionserver.mojang.com/session/minecraft/profile/badProperties",
+			Err: base64.CorruptInputError(0),
+		},
+	},
+	{
+		id: "tooManyRequests",
+		transport: statusOverrideTransport{
+			status: 429,
+			transport: http.NewFileTransport(http.Dir("testdata")),
+		},
+		expProfile: nil,
+		expErr: ErrTooManyRequests,
+	},
+	{
+		id: "087cc153c3434ff7ac497de1569affa1",
+		transport: http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile {
+			Name: "Nergalic",
+			ID: "087cc153c3434ff7ac497de1569affa1",
+			Properties: &Properties{
+				SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
+				CapeURL: "",
+				Model: Steve,
+			},
+		},
+		expErr: nil,
+	},
+}
+
 func TestLoadWithProperties(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	///////////////////////////
-	// TEST 1, 2, 3a, 4b, 5b //
-	///////////////////////////
-
-	u1 := loadTestUsers[nergName]
-
-	fn := fmt.Sprintf("LoadWithProperties(%q)", u1.id)
-	p1, err := LoadWithProperties(u1.id)
-
-	// 1) Correct name and ID, no errors
-	assertBasicInfo(t, fn, err, p1, u1)
-
-	// 2) Properties preloaded
-	if p1.Properties() == nil {
-
-		t.Errorf("%s.Properties() = nil; want preloaded", fn)
-	}
-
-	pp1, err := p1.LoadProperties()
-
-	// Never ought to happen
-	checkForErr(t, err, fn)
-
-	// 3a) Skin set
-	if _, ok := pp1.SkinURL(); !ok {
-
-		t.Errorf("%s.Properties().SkinURL() = \"\"; want URL", fn)
-	}
-
-	// 4b) Model is Steve
-	if m := pp1.Model(); m != Steve {
-
-		t.Errorf("%s.Properties().Model() = %s; want %s", fn, m, Steve)
-	}
-
-	// 5b) No cape
-	if c, ok := pp1.CapeURL(); ok {
-
-		t.Errorf("%s.Properties().CapeURL() = %q; want %q", fn, c, "")
-	}
-
-	////////////////
-	// TEST 2, 5a //
-	////////////////
-
-	fn = fmt.Sprintf("LoadWithProperties(%q)", capeID)
-
-	p2, err := LoadWithProperties(capeID)
-	checkForErr(t, err, fn)
-
-	// 2 + 5a) Check for cape and blow up if not preloaded
-	if p2.Properties().CapeURL == nil {
-
-		t.Errorf("%s.Properties().CapeURL() = \"\"; want URL", fn)
-	}
-}
-
-// Test that ErrTooManyRequests is returned if we exceed the rate limit.
-// Allow the operation to succeed in case Mojang changes the rate limit.
-func TestLoadWithPropertiesFailure(t *testing.T) {
-
-	id := loadTestUsers[breeName].id
-
-	for i := 0; i < 3; i++ {
-
-		_, err := LoadWithProperties(id)
-		if _, nsp := err.(ErrTooManyRequests); !nsp && err != nil {
-
-			t.Fatalf("LoadWithProperties(%q) returned non-ErrTooManyRequests error: %s", id, err)
+	for _, tc := range testLoadWithPropertiesInput {
+		client.Transport = tc.transport
+		profile, err := LoadWithProperties(context.Background(), tc.id)
+		if !reflect.DeepEqual(profile, tc.expProfile) || !reflect.DeepEqual(err, tc.expErr) {
+			t.Errorf(
+				"LoadWithProperties(ctx, %q)\n" +
+					" was: %#v, %s\n" +
+					"want: %#v, %s",
+				tc.id,
+				profile, p(err),
+				tc.expProfile, p(tc.expErr),
+			)
 		}
 	}
 }
 
-// Test that multiple users may be loaded (correctly) at once.
-// Also test that empty and non-existing usernames are ignored
-// and duplicates only are returned once.
-func TestLoadMany(t *testing.T) {
+func TestLoadWithProperties_ContextUsed(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	testUsers := []string{"", "I_DONT_ËXIST_ÆØÅ39"}
+	ctx, _ := context.WithCancel(context.Background())
+	ct := CtxStoreTransport{}
 
-	for n, _ := range loadTestUsers {
+	client.Transport = &ct
+	LoadWithProperties(ctx, "dummy")
 
-		testUsers = append(testUsers, n)
-	}
-
-	fn := fmt.Sprintf("LoadMany(%#v)", testUsers)
-
-	ps, err := LoadMany(testUsers...)
-	checkForErr(t, err, fn)
-
-	expect := loadManyTestRes
-
-	// Verify that the correct number of profiles were returned
-	if len(ps) != len(expect) {
-
-		t.Errorf("len(%s) = %d; want %d", fn, len(ps), len(expect))
-		t.Errorf("%s = %s; want %s", fn, ps, expect)
-
-		t.FailNow()
-	}
-
-	// Verify that the loaded data was correct.
-	for i := range ps {
-
-		got := ps[i]
-		assertBasicInfo(t, fn, nil, got, loadTestUsers[expect[i]])
+	if ct.Context != ctx {
+		t.Error("LoadWithProperties(ctx, \"dummy\") didn't pass context to underlying http.Client")
 	}
 }
 
-// Test that LoadMany actually succeeds at requesting LoadManyMaxSize profiles.
-func TestLoadManyMax(t *testing.T) {
+var testLoadManyInput = [...]struct {
+	ids []string
+	transport http.RoundTripper
+	expProfiles []*Profile
+	expErr error
+} {
+	{
+		ids: []string{},
+		transport: nil,
+		expProfiles: nil,
+		expErr: nil,
+	},
+	{
+		ids: []string{""},
+		transport: nil,
+		expProfiles: nil,
+		expErr: nil,
+	},
+	{
+		ids: make([]string, LoadManyMaxSize + 1, LoadManyMaxSize + 1),
+		transport: nil,
+		expProfiles: nil,
+		expErr: ErrMaxSizeExceeded{LoadManyMaxSize + 1},
+	},
+	{
+		ids: []string{"dummy"},
+		transport: http.NewFileTransport(http.Dir("testdata/LoadMany/unexpectedFormat")),
+		expProfiles: nil,
+		expErr: &url.Error{
+			Op: "Parse",
+			URL: "https://api.mojang.com/profiles/minecraft",
+			Err: internal.ErrUnknownFormat,
+		},
+	},
+	{
+		ids: []string{"nergalic", "AxeLaw", "demo", "doesNotExist"},
+		transport: http.NewFileTransport(http.Dir("testdata/LoadMany/success")),
+		expProfiles: []*Profile{
+			{
+				ID: "087cc153c3434ff7ac497de1569affa1",
+				Name: "Nergalic",
+			},
+			{
+				ID: "cabefc91b5df4c87886a6c604da2e46f",
+				Name: "AxeLaw",
+				NameHistory: emptyHist,
+			},
+		},
+		expErr: nil,
+	},
+}
 
-	var genUsers []string
-	for i := 0; i < LoadManyMaxSize; i++ {
+func TestLoadMany(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-		genUsers = append(genUsers, "user"+string(i))
+	for _, tc := range testLoadManyInput {
+		client.Transport = tc.transport
+		profiles, err := LoadMany(context.Background(), tc.ids...)
+		if !reflect.DeepEqual(profiles, tc.expProfiles) || !reflect.DeepEqual(err, tc.expErr) {
+			t.Errorf(
+				"LoadMany(ctx, %q)\n" +
+					" was: %#v, %s\n" +
+					"want: %#v, %s",
+				tc.ids,
+				profiles, p(err),
+				tc.expProfiles, p(tc.expErr),
+			)
+		}
 	}
+}
 
-	_, err := LoadMany(genUsers...)
+func TestLoadMany_ContextUsed(t *testing.T) {
+	origTransport := client.Transport
+	defer func() { client.Transport = origTransport }()
 
-	// Verify that no error occurred
-	checkForErr(t, err, "LoadMany(<LoadManyMaxSize USERNAMES>)")
+	ctx, _ := context.WithCancel(context.Background())
+	ct := CtxStoreTransport{}
+
+	client.Transport = &ct
+	LoadMany(ctx, "dummy")
+
+	if ct.Context != ctx {
+		t.Error("LoadMany(ctx, \"dummy\") didn't pass context to underlying http.Client")
+	}
+}
+
+///////////////////
+
+var testError = errors.New("testError")
+
+func p(x interface{}) interface{} {
+	if x == nil {
+		return "<nil>"
+	} else {
+		return x
+	}
+}
+
+///////////////////
+
+type statusOverrideTransport struct {
+	status int
+	transport http.RoundTripper
+}
+
+func (sot statusOverrideTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	resp, err = sot.transport.RoundTrip(req)
+	resp.StatusCode = sot.status
+	return
+}
+
+///////////////////
+
+type errorTransport struct {
+	err error
+}
+
+func (et errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, et.err
+}
+
+///////////////////
+
+type CtxStoreTransport struct {
+	Context context.Context
+}
+
+func (ct *CtxStoreTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ct.Context = req.Context()
+	return nil, errors.New("RoundTrip was called")
 }

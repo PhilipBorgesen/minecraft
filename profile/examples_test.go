@@ -2,61 +2,51 @@ package profile_test
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
+	"log"
 
+	"context"
 	"github.com/PhilipBorgesen/minecraft/profile"
 )
 
 // The following example shows how to retrieve and report all
 // information about a Minecraft profile based on its username.
 func Example() {
+	ctx := context.TODO()
 
 	// User to retrieve information about
-	username := "nergalic"
+	const username = "nergalic"
 
 	// Retrieve basic information
-	p, err := profile.Load(username)
+	p, err := profile.Load(ctx, username)
 	if err != nil {
-
-		// Handle error
-		panic("failed to load: " + err.Error())
+		log.Fatalf("failed to load: %s", err)
 	}
 
 	// Get case-corrected username and ID
-	name := p.Name()
-	id := p.ID()
+	name, id := p.Name, p.ID
 
-	// Load previously used usernames
-	hist, err := p.LoadNameHistory()
+	// Load previously associated usernames
+	hist, err := p.LoadNameHistory(ctx, false)
 	if err != nil {
-
-		// Handle error
-		panic("failed to load name history: " + err.Error())
+		log.Fatalf("failed to load name history: %s", err)
 	}
 
 	// Load cape, skin and model type
-	props, err := p.LoadProperties()
+	props, err := p.LoadProperties(ctx, false)
 	if err != nil {
-
-		// Handle error
-		panic("failed to load properties: " + err.Error())
+		log.Fatalf("failed to load properties: %s", err)
 	}
 
 	// Get model type, skin and cape
-	model := props.Model()
-	skin, sOk := props.SkinURL()
-	cape, cOk := props.CapeURL()
+	model, skin, cape := props.Model, props.SkinURL, props.CapeURL
 
 	// If profile has no custom skin
-	if !sOk {
-
+	if skin == "" {
 		skin = "<NONE>"
 	}
 
 	// If profile has no cape
-	if !cOk {
-
+	if cape == "" {
 		cape = "<NONE>"
 	}
 
@@ -82,62 +72,4 @@ func Example() {
 	// SKIN MODEL:                                         Steve
 	// SKIN URL:                http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e
 	// CAPE URL:                                          <NONE>
-}
-
-// The following example shows how to retrieve a profile by ID
-// and then save its skin to a .png file.
-func ExampleProperties() {
-
-	// Profile ID to retrieve skin for
-	id := fetchProfileIdFromDatabase()
-
-	// Load profile with skin information preloaded
-	p, err := profile.LoadWithProperties(id)
-	if err != nil {
-
-		panic("failed to load profile: " + err.Error())
-	}
-
-	// We know properties already have been loaded, hence we
-	// can use the Properties method instead of LoadProperties.
-	rc, err := p.Properties().SkinReader()
-	if err != nil {
-
-		switch err.(type) {
-
-		case profile.ErrNoSkin: // Profile had no skin.
-			rc = readSteveDefault() // Fallback to default Steve skin.
-
-		default: // Handle error
-			panic("failed to load skin: " + err.Error())
-		}
-	}
-	defer rc.Close()
-
-	// Filename: <PROFILE_USERNAME>.png
-	filename := p.Name() + ".png"
-
-	bs, err := ioutil.ReadAll(rc)
-	if err != nil || len(bs) == 0 {
-
-		// Handle error
-		panic("failed to load skin: " + err.Error())
-	}
-
-	if ioutil.WriteFile(filename, bs, 0666) != nil {
-
-		// Handle error
-		panic(fmt.Sprintf("failed to save skin to %s: %s", filename, err))
-	}
-}
-
-func fetchProfileIdFromDatabase() string {
-
-	// AxeLaw ID
-	return "cabefc91b5df4c87886a6c604da2e46f"
-}
-
-func readSteveDefault() io.ReadCloser {
-
-	panic("Test profile had no skin")
 }

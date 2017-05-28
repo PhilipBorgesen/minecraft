@@ -19,9 +19,7 @@ package versions
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
+	"github.com/PhilipBorgesen/minecraft/internal"
 	"net/http"
 	"net/url"
 	"time"
@@ -31,7 +29,7 @@ import (
 // ctx must be non-nil. If an error occurs, l will be uninitialised.
 // Load reports Mojang server communication failures using *url.Error.
 func Load(ctx context.Context) (l Listing, err error) {
-	m, err := fetchJSON(ctx)
+	m, err := internal.FetchJSON(ctx, client, versionsURL)
 	if err == nil {
 		err = initialize(&l, m)
 		if err != nil {
@@ -130,50 +128,20 @@ func (t Type) String() string {
 
 ///////////////////
 
-var errUnknownFormat = errors.New("unknown JSON data format")
-
-type errHttpStatus int
-
-func (e errHttpStatus) Error() string {
-	code := int(e)
-	return fmt.Sprintf("%d %s", code, http.StatusText(code))
-}
-
-///////////////////
-
 var client = &http.Client{}
 
-// Fetch Minecraft version JSON and parse it into a map hierarchy
-func fetchJSON(ctx context.Context) (map[string]interface{}, error) {
-	// Fetch JSON
-	req, _ := http.NewRequest("GET", versionsURL, nil) // Error only occurs if versionsURL is bad
-	req = req.WithContext(ctx)
-	resp, err := client.Do(req) // TODO: Cache response and perform conditional requests
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, uerr("Get", errHttpStatus(resp.StatusCode))
-	}
-
-	// Decode JSON
-	var j map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&j)
-	if err != nil {
-		return nil, uerr("Parse", err)
-	}
-
-	return j, nil
-}
-
-func initialize(l *Listing, m map[string]interface{}) (err error) {
+func initialize(l *Listing, j interface{}) (err error) {
 	defer func() { // If JSON data isn't structured as expected
 		if r := recover(); r != nil {
-			err = uerr("Parse", errUnknownFormat)
+			err = &url.Error{
+				Op:  "Parse",
+				URL: versionsURL,
+				Err: internal.ErrUnknownFormat,
+			}
 		}
 	}()
+
+	m := j.(map[string]interface{})
 
 	l.Versions = make(map[string]Version)
 
@@ -201,12 +169,4 @@ func parseTime(t string) time.Time {
 	const timeFormat = "2006-01-02T15:04:05-07:00"
 	tm, _ := time.Parse(timeFormat, t)
 	return tm
-}
-
-func uerr(op string, err error) *url.Error {
-	return &url.Error{
-		Op:  op,
-		URL: versionsURL,
-		Err: err,
-	}
 }
