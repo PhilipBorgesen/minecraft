@@ -10,7 +10,7 @@ At the time of writing it contains the following Go packages:
     - Lookup based on either Minecraft username or ID.
     - Fetching ID, current username, skin textures and history of prior usernames.
   - `versions`, a small package for fetching Mojang's listing of Minecraft versions
-    and working with the reported version information. Most important this package
-    reports the latest snapshot and release versions of Minecraft.
-
+    and working with the reported version information; includes release dates of
+    both official releases and the latest development snapshots.
+ 
 Documentation can be found at https://godoc.org/github.com/PhilipBorgesen/minecraft.
