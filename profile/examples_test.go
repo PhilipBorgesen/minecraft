@@ -61,8 +61,7 @@ func Example() {
 	fmt.Printf("SKIN URL:                %32s\n", skin)
 	fmt.Printf("CAPE URL:                %32s\n", cape)
 
-	// Example output:
-	//
+	// output:
 	// INFORMATION FOR:                                 nergalic
 	// ---------------------------------------------------------
 	// CASE-CORRECTED USERNAME:                         Nergalic
