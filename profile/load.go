@@ -186,7 +186,7 @@ func LoadMany(ctx context.Context, username ...string) (ps []*Profile, err error
 ///////////////////
 
 func transformError(src error) error {
-	if e, ok := internal.UnwrapErrFailedRequest(src); ok {
+	if e, ok := internal.UnwrapFailedRequestError(src); ok {
 		if e.StatusCode == 204 {
 			return ErrNoSuchProfile
 		} else if e.ErrorCode == "TooManyRequestsException" {

@@ -14,11 +14,11 @@ import (
 )
 
 var testErrFailedRequests = [...]struct {
-	err      *ErrFailedRequest
+	err      *FailedRequestError
 	expError string
 }{
 	{
-		err: &ErrFailedRequest{
+		err: &FailedRequestError{
 			StatusCode:   404,
 			ErrorCode:    "",
 			ErrorMessage: "",
@@ -26,7 +26,7 @@ var testErrFailedRequests = [...]struct {
 		expError: "404 Not Found",
 	},
 	{
-		err: &ErrFailedRequest{
+		err: &FailedRequestError{
 			StatusCode:   404,
 			ErrorCode:    "ErrorCode",
 			ErrorMessage: "",
@@ -34,7 +34,7 @@ var testErrFailedRequests = [...]struct {
 		expError: "ErrorCode",
 	},
 	{
-		err: &ErrFailedRequest{
+		err: &FailedRequestError{
 			StatusCode:   404,
 			ErrorCode:    "",
 			ErrorMessage: "ErrorMessage",
@@ -42,7 +42,7 @@ var testErrFailedRequests = [...]struct {
 		expError: "ErrorMessage",
 	},
 	{
-		err: &ErrFailedRequest{
+		err: &FailedRequestError{
 			StatusCode:   404,
 			ErrorCode:    "ErrorCode",
 			ErrorMessage: "ErrorMessage",
@@ -63,10 +63,10 @@ func TestErrFailedRequest_Error(t *testing.T) {
 	}
 }
 
-var testErrFailedRequest = &ErrFailedRequest{}
+var testErrFailedRequest = &FailedRequestError{}
 var testUnwrapErrors = [...]struct {
 	err    error
-	expErr *ErrFailedRequest
+	expErr *FailedRequestError
 	expOk  bool
 }{
 	{
@@ -96,10 +96,10 @@ var testUnwrapErrors = [...]struct {
 
 func TestUnwrapErrFailedRequest(t *testing.T) {
 	for _, tc := range testUnwrapErrors {
-		err, ok := UnwrapErrFailedRequest(tc.err)
+		err, ok := UnwrapFailedRequestError(tc.err)
 		if err != tc.expErr || ok != tc.expOk {
 			t.Errorf(
-				"UnwrapErrFailedRequest(%#v) was %q, %t; want %q, %t",
+				"UnwrapFailedRequestError(%#v) was %q, %t; want %q, %t",
 				tc.err, err, ok, tc.expErr, tc.expOk,
 			)
 		}
@@ -141,7 +141,7 @@ var testParseResponseInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Dummy",
 			URL: "dummyURL",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode:   400,
 				ErrorCode:    "IllegalArgumentException",
 				ErrorMessage: "Invalid timestamp.",
@@ -157,7 +157,7 @@ var testParseResponseInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Dummy",
 			URL: "dummyURL",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode: 400,
 			},
 		},
@@ -171,7 +171,7 @@ var testParseResponseInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Dummy",
 			URL: "dummyURL",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode: 400,
 			},
 		},
@@ -185,7 +185,7 @@ var testParseResponseInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Dummy",
 			URL: "dummyURL",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode: 400,
 			},
 		},
@@ -199,7 +199,7 @@ var testParseResponseInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Dummy",
 			URL: "dummyURL",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode: 204,
 			},
 		},
@@ -258,7 +258,7 @@ var testFetchJSONInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Get",
 			URL: "http://does.not/exist/at.all",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode: 404,
 			},
 		},
@@ -336,7 +336,7 @@ var testExchangeJSONInput = [...]struct {
 		expErr: &url.Error{
 			Op:  "Post",
 			URL: "http://does.not/exist/at.all",
-			Err: &ErrFailedRequest{
+			Err: &FailedRequestError{
 				StatusCode: 404,
 			},
 		},

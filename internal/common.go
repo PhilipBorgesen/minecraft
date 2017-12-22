@@ -14,13 +14,13 @@ import (
 var ErrUnknownFormat = errors.New("unknown JSON data format")
 
 // Non-200 responses from Mojang servers, incl. potential JSON error types and messages.
-type ErrFailedRequest struct {
+type FailedRequestError struct {
 	StatusCode   int
 	ErrorCode    string
 	ErrorMessage string
 }
 
-func (err *ErrFailedRequest) Error() string {
+func (err *FailedRequestError) Error() string {
 	if err.ErrorCode != "" {
 		if err.ErrorMessage != "" {
 			return err.ErrorCode + ": " + err.ErrorMessage
@@ -36,7 +36,7 @@ func (err *ErrFailedRequest) Error() string {
 }
 
 // GET JSON from an url and parse it into a map hierarchy
-// If a non-200 response is returned, the returned url.Error wraps an ErrFailedRequest.
+// If a non-200 response is returned, the returned url.Error wraps an FailedRequestError.
 func FetchJSON(ctx context.Context, client *http.Client, endpoint string) (interface{}, error) {
 	// Fetch JSON
 	req, _ := http.NewRequest("GET", endpoint, nil) // Error only occurs if endpoint is bad
@@ -52,7 +52,7 @@ func FetchJSON(ctx context.Context, client *http.Client, endpoint string) (inter
 }
 
 // POST JSON to an url and parse the response JSON into a map hierarchy
-// If a non-200 response is returned, the returned url.Error wraps an ErrFailedRequest.
+// If a non-200 response is returned, the returned url.Error wraps an FailedRequestError.
 func ExchangeJSON(ctx context.Context, client *http.Client, endpoint string, data interface{}) (interface{}, error) {
 	buf := bytes.Buffer{}
 	err := json.NewEncoder(&buf).Encode(data)
@@ -77,7 +77,7 @@ func parseResponse(r io.ReadCloser, statusCode int, op, endpoint string) (interf
 	parseErr := json.NewDecoder(r).Decode(&j)
 
 	if statusCode != 200 {
-		err := &ErrFailedRequest{
+		err := &FailedRequestError{
 			StatusCode: statusCode,
 		}
 		if j, ok := j.(map[string]interface{}); ok && parseErr == nil {
@@ -106,9 +106,9 @@ func parseResponse(r io.ReadCloser, statusCode int, op, endpoint string) (interf
 
 ///////////////////
 
-func UnwrapErrFailedRequest(uerr error) (err *ErrFailedRequest, ok bool) {
+func UnwrapFailedRequestError(uerr error) (err *FailedRequestError, ok bool) {
 	if e, match := uerr.(*url.Error); match {
-		err, ok = e.Err.(*ErrFailedRequest)
+		err, ok = e.Err.(*FailedRequestError)
 	}
 	return
 }

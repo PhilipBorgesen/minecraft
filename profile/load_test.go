@@ -386,7 +386,7 @@ var testLoadInput = [...]struct {
 	{
 		username: "doesNotExist",
 		transport: errorTransport{
-			&internal.ErrFailedRequest{
+			&internal.FailedRequestError{
 				StatusCode: 204,
 			},
 		},
@@ -467,7 +467,7 @@ var testLoadAtTimeInput = [...]struct {
 		username: "doesNotExist",
 		time: time.Unix(0, 0),
 		transport: errorTransport{
-			&internal.ErrFailedRequest{
+			&internal.FailedRequestError{
 				StatusCode: 204,
 			},
 		},
@@ -547,7 +547,7 @@ var testLoadWithNameHistoryInput = [...]struct {
 	{
 		id: "00000000000000000000000000000000", // Doesn't exist
 		transport: errorTransport{
-			&internal.ErrFailedRequest{
+			&internal.FailedRequestError{
 				StatusCode: 204,
 			},
 		},
@@ -631,7 +631,7 @@ var testLoadWithPropertiesInput = [...]struct {
 	{
 		id: "00000000000000000000000000000000", // Doesn't exist
 		transport: errorTransport{
-			&internal.ErrFailedRequest{
+			&internal.FailedRequestError{
 				StatusCode: 204,
 			},
 		},

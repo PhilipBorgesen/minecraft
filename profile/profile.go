@@ -201,7 +201,7 @@ func loadTexture(ctx context.Context, endpoint string) (_ io.ReadCloser, err err
 		err = &url.Error{
 			Op:  "Get",
 			URL: endpoint,
-			Err: &internal.ErrFailedRequest{StatusCode: resp.StatusCode},
+			Err: &internal.FailedRequestError{StatusCode: resp.StatusCode},
 		}
 		return
 	}

@@ -132,7 +132,7 @@ var testLoadErrorsInput = [...]struct {
 	{
 		transport: http.NewFileTransport(http.Dir("testdata/nonexisting")),
 		op:        "Get",
-		errStr:    (&internal.ErrFailedRequest{StatusCode: 404}).Error(),
+		errStr:    (&internal.FailedRequestError{StatusCode: 404}).Error(),
 	},
 	{
 		transport: http.NewFileTransport(http.Dir("testdata/malstructured")),

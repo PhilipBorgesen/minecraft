@@ -522,7 +522,7 @@ var testProperties_SkinReaderInput = [...] struct{
 		expErr: &url.Error{
 			Op: "Get",
 			URL: "http://example.com/does/not/exist.png",
-			Err: &internal.ErrFailedRequest{StatusCode: 404},
+			Err: &internal.FailedRequestError{StatusCode: 404},
 		},
 	},
 }
@@ -624,7 +624,7 @@ var testProperties_CapeReaderInput = [...] struct{
 		expErr: &url.Error{
 			Op: "Get",
 			URL: "http://example.com/does/not/exist.png",
-			Err: &internal.ErrFailedRequest{StatusCode: 404},
+			Err: &internal.FailedRequestError{StatusCode: 404},
 		},
 	},
 }
