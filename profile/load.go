@@ -6,19 +6,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/PhilipBorgesen/minecraft/internal"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/PhilipBorgesen/minecraft/internal"
 )
 
-// The maximum number of profiles which may be requested at once using LoadMany.
-// If more are requested, the request may fail with a ErrMaxSizeExceeded error.
+// LoadManyMaxSize is the maximum number of profiles which may be requested at
+// once using LoadMany. If more are requested, the request may fail with an
+// ErrMaxSizeExceeded error.
 const LoadManyMaxSize int = 100
 
-// Load fetches the profile currently associated with username.
-// ctx must be non-nil. If no profile currently is associated with username,
-// Load returns ErrNoSuchProfile. If an error is returned, p will be nil.
+// Load fetches the profile currently associated with username. ctx must be
+// non-nil. If no profile currently is associated with username, Load returns
+// ErrNoSuchProfile. If an error is returned, p will be nil.
 func Load(ctx context.Context, username string) (p *Profile, err error) {
 	if username == "" {
 		return nil, ErrNoSuchProfile
@@ -27,14 +29,15 @@ func Load(ctx context.Context, username string) (p *Profile, err error) {
 	return loadByName(ctx, endpoint)
 }
 
-// LoadAtTime fetches the profile associated with username at the specified instant of time.
-// ctx must be non-nil. If no profile was associated with username at the specified instant
-// of time, LoadAtTime returns ErrNoSuchProfile. If an error is returned, p will be nil.
-func LoadAtTime(ctx context.Context, username string, tm time.Time) (p *Profile, err error) {
+// LoadAtTime fetches the profile associated with username at the specified
+// instant of time. ctx must be non-nil. If no profile was associated with
+// username at the specified instant of time, LoadAtTime returns
+// ErrNoSuchProfile. If an error is returned, p will be nil.
+func LoadAtTime(ctx context.Context, username string, t time.Time) (p *Profile, err error) {
 	if username == "" {
 		return nil, ErrNoSuchProfile
 	}
-	endpoint := fmt.Sprintf(loadAtTimeURL, username, tm.Unix())
+	endpoint := fmt.Sprintf(loadAtTimeURL, username, t.Unix())
 	return loadByName(ctx, endpoint)
 }
 
@@ -47,23 +50,23 @@ func loadByName(ctx context.Context, endpoint string) (p *Profile, err error) {
 				err = &url.Error{Op: "Parse", URL: endpoint, Err: internal.ErrUnknownFormat}
 			}
 		}()
-		p, err = buildProfile(j.(map[string]interface{}), ErrNoSuchProfile)
+		return buildProfile(j.(map[string]interface{}), ErrNoSuchProfile)
 	} else {
-		err = transformError(err)
+		return nil, transformError(err)
 	}
-	return
 }
 
-// LoadByID fetches the profile identified by id. ctx must be non-nil.
-// If no profile is identified by id, LoadByID returns ErrNoSuchProfile.
-// If an error is returned, p will be nil.
+// LoadByID fetches the profile identified by id. ctx must be non-nil. If no
+// profile is identified by id, LoadByID returns ErrNoSuchProfile. If an error
+// is returned, p will be nil.
 func LoadByID(ctx context.Context, id string) (p *Profile, err error) {
 	return LoadWithNameHistory(ctx, id)
 }
 
-// LoadNameHistory fetches the profile identified by id, incl. its name history.
-// ctx must be non-nil. If no profile is identified by id, LoadWithNameHistory
-// returns ErrNoSuchProfile. If an error is returned, p will be nil.
+// LoadWithNameHistory fetches the profile identified by id, incl. its name
+// history. ctx must be non-nil. If no profile is identified by id,
+// LoadWithNameHistory returns ErrNoSuchProfile. If an error is returned,
+// p will be nil.
 func LoadWithNameHistory(ctx context.Context, id string) (p *Profile, err error) {
 	if id == "" {
 		return nil, ErrNoSuchProfile
@@ -77,22 +80,23 @@ func LoadWithNameHistory(ctx context.Context, id string) (p *Profile, err error)
 			}
 		}()
 		name, hist := buildHistory(j.([]interface{}))
-		p = &Profile{
+		return &Profile{
 			ID:          id,
 			Name:        name,
 			NameHistory: hist,
-		}
+		}, nil
 	} else {
-		err = transformError(err)
+		return nil, transformError(err)
 	}
-	return
 }
 
-// LoadWithProperties fetches the profile identified by a ID, incl. its properties.
-// ctx must be non-nil. If no profile is identified by id, LoadWithProperties
-// returns ErrNoSuchProfile. If an error is returned, p will be nil.
+// LoadWithProperties fetches the profile identified by id, incl. its
+// properties. ctx must be non-nil. If no profile is identified by id,
+// LoadWithProperties returns ErrNoSuchProfile. If an error is returned,
+// p will be nil.
 //
-// NB! For each profile, profile properties may only be requested once per minute.
+// NB! For each profile, profile properties may only be requested once per
+// minute.
 func LoadWithProperties(ctx context.Context, id string) (p *Profile, err error) {
 	if id == "" {
 		return nil, ErrNoSuchProfile
@@ -110,36 +114,38 @@ func LoadWithProperties(ctx context.Context, id string) (p *Profile, err error) 
 		m := j.(map[string]interface{})
 		p, err = buildProfile(m, ErrNoSuchProfile)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		p.Properties, err = buildProperties(m["properties"].([]interface{}))
 		if err != nil {
 			// Let the entire loading fail even if just property construction fails.
 			// May always be changed later if this is too drastic.
-			p, err = nil, &url.Error{Op: "Parse", URL: endpoint, Err: err}
+			return nil, &url.Error{Op: "Parse", URL: endpoint, Err: err}
 		}
+
+		return p, nil
 	} else {
-		err = transformError(err)
+		return nil, transformError(err)
 	}
-	return
 }
 
 // LoadMany fetches multiple profiles by their currently associated usernames.
-// Usernames associated with no profile are ignored and absent from the returned results.
-// Duplicate usernames are only returned once, and ps will be nil if an error occurs.
-// ctx must be non-nil.
+// Usernames associated with no profile are ignored and absent from the
+// returned results. Duplicate usernames are only returned once, and ps will be
+// nil if an error occurs. ctx must be non-nil.
 //
 // NB! Only a maximum of LoadManyMaxSize profiles may be fetched at once.
-// If more are attempted loaded in the same operation, an ErrMaxSizeExceeded error occurs.
-func LoadMany(ctx context.Context, username ...string) (ps []*Profile, err error) {
-	if len(username) > LoadManyMaxSize {
-		return nil, ErrMaxSizeExceeded{len(username)}
+// If more are attempted loaded in the same operation, an ErrMaxSizeExceeded
+// error is returned.
+func LoadMany(ctx context.Context, usernames ...string) (ps []*Profile, err error) {
+	if len(usernames) > LoadManyMaxSize {
+		return nil, ErrMaxSizeExceeded{len(usernames)}
 	}
 
 	c := 0
 	var users [LoadManyMaxSize]string
-	for _, u := range username {
+	for _, u := range usernames {
 		// Remove empty usernames. They are not accepted by the Mojang API.
 		if u != "" {
 			users[c] = u
@@ -148,7 +154,7 @@ func LoadMany(ctx context.Context, username ...string) (ps []*Profile, err error
 	}
 
 	if c == 0 {
-		return // No need to request anything
+		return nil, nil // No need to request anything
 	}
 
 	j, err := internal.ExchangeJSON(ctx, client, loadManyURL, users[:c])
@@ -171,19 +177,15 @@ func LoadMany(ctx context.Context, username ...string) (ps []*Profile, err error
 					// Skip demo accounts
 					continue
 				}
-				ps = nil
-				return
+				return nil, err
 			}
 			ps = append(ps, pr)
 		}
-		err = nil // In case last profile was a demo profile
+		return ps, nil
 	} else {
-		err = transformError(err)
+		return nil, transformError(err)
 	}
-	return
 }
-
-///////////////////
 
 func transformError(src error) error {
 	if e, ok := internal.UnwrapFailedRequestError(src); ok {
@@ -205,13 +207,13 @@ var client = &http.Client{}
 // If available, "demo" and "legacy" MUST map to boolean values.
 // demoErr is the error to return if the profile is a demo account.
 // If an error is returned, p will be nil.
-func buildProfile(m map[string]interface{}, demoErr error) (*Profile, error) {
+func buildProfile(m map[string]interface{}, demoErr error) (p *Profile, err error) {
 	// Ensure demo accounts are not returned
 	if t, demo := m["demo"]; demo && t.(bool) {
 		return nil, demoErr
 	}
 
-	p := &Profile{
+	p = &Profile{
 		ID:   m["id"].(string),
 		Name: m["name"].(string),
 	}
@@ -226,8 +228,8 @@ func buildProfile(m map[string]interface{}, demoErr error) (*Profile, error) {
 	return p, nil
 }
 
-// buildHistory creates a username history (previous username first, original username
-// last) and returns it along with the current username.
+// buildHistory creates a username history (previous username first, original
+// username last) and returns it along with the current username.
 // a is an array of maps containing "name" and (possibly) "changedToAt" keys.
 // The "name" values MUST be string and the "changedToAt" values MUST be integer.
 // A "changedToAt" field is the "until" field of the previous PastName struct.
@@ -265,8 +267,8 @@ func msToTime(ms int64) time.Time {
 }
 
 // buildProperties returns a property set based on a JSON array of properties.
-// props MUST consist of map[string]interface{} maps, each map containing string
-// values for the keys "name" and "value".
+// props MUST consist of map[string]interface{} maps, each map containing
+// string values for the keys "name" and "value".
 func buildProperties(props []interface{}) (ps *Properties, err error) {
 	ps = new(Properties)
 	for _, p := range props {
@@ -284,24 +286,25 @@ func buildProperties(props []interface{}) (ps *Properties, err error) {
 	return ps, nil
 }
 
-// Map of property name => value parser pairs.
+// propertyPopulators is a map of property name/value parser pairs.
 // Each parser takes the base64 encoded value, decodes it, and populates p with
 // the parsed data.
 var propertyPopulators = map[string]func(base64 string, p *Properties) error{
 	"textures": populateTextures,
 }
 
-// Parses the "textures" property and adds its info to the Properties struct
-func populateTextures(enc string, props *Properties) (err error) {
+// populateTextures parses the base64 encoded "textures" property enc and adds
+// its information to the Properties struct.
+func populateTextures(enc string, props *Properties) error {
 	bs, err := base64.StdEncoding.DecodeString(enc)
 	if err != nil {
-		return
+		return err
 	}
 
 	var j map[string]interface{}
 	err = json.NewDecoder(bytes.NewBuffer(bs)).Decode(&j)
 	if err != nil {
-		return
+		return err
 	}
 
 	ts := j["textures"].(map[string]interface{})
@@ -332,9 +335,28 @@ func populateTextures(enc string, props *Properties) (err error) {
 	return nil
 }
 
-// Implementation inspired by:
-// 	https://git.io/vSF4a
+// defaultModel implementation is inspired by https://git.io/vSF4a.
 // Credit goes to Minecrell for compacting Java's 'uuid.hashCode() & 1' into the below.
+//
+// Copyright (c) 2014, Lapis <https://github.com/LapisBlue>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 func defaultModel(uuid string) Model {
 	if (isEven(uuid[7]) != isEven(uuid[16+7])) != (isEven(uuid[15]) != isEven(uuid[16+15])) {
 		return Alex
@@ -350,6 +372,6 @@ func isEven(c uint8) bool {
 	case c >= 'a' && c <= 'f':
 		return (c & 1) == 1
 	default:
-		panic("Invalid digit '" + string(c) + "'")
+		panic("minecraft/profile: invalid digit '" + string(c) + "' in player uuid")
 	}
 }

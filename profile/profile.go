@@ -1,6 +1,6 @@
 // Package profile allows the username, ID, skin and username history of Minecraft
 // profiles to be retrieved by either username or ID.
-// It is a binding for the public Mojang API described at: http://wiki.vg/Mojang_API
+// It is a binding for the public Mojang API described at: http://wiki.vg/Mojang_API.
 //
 // Since Mojang's API historically have been inconsistent on whether demo profiles
 // are returned or not, to ensure consistency this package have been written never
@@ -13,25 +13,26 @@ package profile
 
 import (
 	"context"
-	"errors"
-	"github.com/PhilipBorgesen/minecraft/internal"
 	"io"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/PhilipBorgesen/minecraft/internal"
 )
 
 // Profile represents the profile of a Minecraft user account.
 type Profile struct {
-	// Universally unique profile ID.
+	// ID is the profile's universally unique identifier, which never changes.
 	ID string
-	// Currently associated username.
+	// Name is the profile's currently associated username, subject to change.
 	Name string
-	// Past usernames incl. time of change, previous username first, original
-	// username last. Unless explicitly loaded, NameHistory may be nil.
+	// NameHistory is the profile's past usernames incl. when each username
+	// stopped being used. The profile's last username is first, its original
+	// username is last. Unless explicitly loaded, NameHistory may be nil.
 	NameHistory []PastName
-	// Skin, model and cape used by the profile.
-	// Nil unless Properties explicitly has been loaded.
+	// Properties contains the skin, model and cape used by the profile.
+	// Unless explicitly loaded, Properties may be nil.
 	Properties *Properties
 
 	_ struct{} // Ensure Profile is constructed using named parameters.
@@ -42,45 +43,49 @@ func (p *Profile) String() string {
 	return p.Name
 }
 
-// LoadNameHistory loads and returns p.NameHistory, which contains the profile's past usernames.
-// If force is true, p.NameHistory will be loaded anew from the Mojang servers even though it
-// already is present. If force is false, p.NameHistory will only be loaded if nil.
+// LoadNameHistory loads and returns p.NameHistory, which contains the
+// profile's past usernames. If force is true, p.NameHistory will be loaded
+// anew from the Mojang servers even though it already is present. If force
+// is false, p.NameHistory will only be loaded if nil.
 //
-// ctx must be non-nil and p.ID must be set. When properties are loaded, p.Name will also be updated
-// if it has changed.
+// ctx must be non-nil and p.ID must be set. When the name history is loaded,
+// p.Name will also be updated if it has changed.
 //
-// No matter whether the loading succeeds or not, p.NameHistory will be returned as hist, which thus
-// only will be nil if the loading fails and p.NameHistory was nil beforehand.
+// No matter whether the loading succeeds or not, p.NameHistory will be
+// returned as hist, which thus only will be nil if the loading fails and
+// p.NameHistory was nil beforehand.
 //
-// A profile which was loaded by LoadWithNameHistory has p.NameHistory preloaded.
+// A profile which was loaded by LoadWithNameHistory has p.NameHistory
+// pre-loaded.
 func (p *Profile) LoadNameHistory(ctx context.Context, force bool) (hist []PastName, err error) {
 	if p.NameHistory == nil || force {
 		var loaded *Profile
 		loaded, err = LoadWithNameHistory(ctx, p.ID)
 		if err != nil {
 			if err == ErrNoSuchProfile && p.ID == "" {
-				err = errors.New("p.ID was not set")
+				err = ErrUnsetPlayerID
 			}
 		} else {
 			p.Name = loaded.Name
 			p.NameHistory = loaded.NameHistory
 		}
 	}
-	hist = p.NameHistory
-	return
+	return p.NameHistory, err
 }
 
-// LoadProperties loads and returns p.Properties, which contains the profile's skin, cape and model.
-// If force is true, p.Properties will be loaded anew from the Mojang servers even though it already
-// is present. If force is false, p.Properties will only be loaded if nil.
+// LoadProperties loads and returns p.Properties, which contains the profile's
+// skin, cape and model. If force is true, p.Properties will be loaded anew
+// from the Mojang servers even though it already is present. If force is
+// false, p.Properties will only be loaded if nil.
 //
-// ctx must be non-nil and p.ID must be set. When properties are loaded, p.Name will also be updated
-// if it has changed.
+// ctx must be non-nil and p.ID must be set. When properties are loaded, p.Name
+// will also be updated if it has changed.
 //
-// No matter whether the loading succeeds or not, p.Properties will be returned as ps, which thus only
-// will be nil if the loading fails and p.Properties was nil beforehand.
+// No matter whether the loading succeeds or not, p.Properties will be returned
+// as ps, which thus only will be nil if the loading fails and p.Properties was
+// nil beforehand.
 //
-// A profile which was loaded by LoadWithProperties has p.Properties preloaded.
+// A profile which was loaded by LoadWithProperties has p.Properties pre-loaded.
 //
 // NB! For each profile, profile properties may only be requested once per minute.
 func (p *Profile) LoadProperties(ctx context.Context, force bool) (ps *Properties, err error) {
@@ -89,15 +94,14 @@ func (p *Profile) LoadProperties(ctx context.Context, force bool) (ps *Propertie
 		loaded, err = LoadWithProperties(ctx, p.ID)
 		if err != nil {
 			if err == ErrNoSuchProfile && p.ID == "" {
-				err = errors.New("p.ID was not set")
+				err = ErrUnsetPlayerID
 			}
 		} else {
 			p.Name = loaded.Name
 			p.Properties = loaded.Properties
 		}
 	}
-	ps = p.Properties
-	return
+	return p.Properties, err
 }
 
 /*// UploadSkin sets s as the skin for the profile identified by p.ID.
@@ -107,19 +111,16 @@ func (p *Profile) UploadSkin(ctx context.Context, authToken string, s *SkinUploa
 	return nil
 }*/
 
-///////////////////
-
 // PastName represents one of a profile's past usernames.
 // PastName values should be used as map or database keys with caution as they
 // contain a time.Time field. For the same reasons, do not use == with PastName
 // values; use Equal instead.
 type PastName struct {
-	// A username used by the profile in the past.
+	// Name is a username used by the profile in the past.
 	Name string
-	// The time instant the profile stopped using Name as username.
-	// Prior past usernames may be consulted to determine when this
-	// username was taken into use. A zero value means that the time
-	// is unknown.
+	// Until is the time instant the profile stopped using Name as username.
+	// Prior past usernames may be consulted to determine when this username
+	// was taken into use.
 	Until time.Time
 
 	_ struct{} // Ensure PastName is constructed using named parameters.
@@ -132,33 +133,29 @@ func (p PastName) Equal(q PastName) bool {
 	return p.Name == q.Name && p.Until.Equal(q.Until)
 }
 
-// String returns p.Name
+// String returns p.Name.
 func (p PastName) String() string {
 	return p.Name
 }
 
-///////////////////
-
 // Properties contains additional information associated with a Profile.
 type Properties struct {
-	// URL to the profile's custom skin texture. If SkinURL is the empty
-	// string, no skin texture has been set and the profile uses the
+	// SkinURL is an URL to the profile's custom skin texture.
+	// If SkinURL == "", no skin texture has been set and the profile uses the
 	// default skin for Model.
 	SkinURL string
-	// URL to the profile's cape texture. If CapeURL is the empty string,
-	// no cape is associated with the profile.
+	// CapeURL is an URL to the profile's cape texture.
+	// If CapeURL == "", no cape is associated with the profile.
 	CapeURL string
-	// The player model type used by the profile. If no model explicitly
-	// has been set for the profile, a default Model will be determined
-	// from the profile ID.
+	// Model is the profile's player model type.
 	Model Model
 
 	_ struct{} // Ensure Properties is constructed using named parameters.
 }
 
-// SkinReader is a convenience method for retrieving the skin texture at p.SkinURL.
-// If p.SkinURL is empty, the default texture for p.Model is retrieved instead.
-// ctx must be non-nil.
+// SkinReader is a convenience method for retrieving the skin texture at
+// p.SkinURL. ctx must be non-nil. If p.SkinURL == "", the default texture for
+// p.Model will be attempted to be retrieved instead.
 //
 // It is the client's responsibility to close the ReadCloser. When an error is
 // returned, ReadCloser is nil.
@@ -167,14 +164,15 @@ func (p *Properties) SkinReader(ctx context.Context) (io.ReadCloser, error) {
 	if url == "" {
 		url = p.Model.defaultSkinURL()
 		if url == "" {
-			return nil, errors.New("SkinReader() encountered unknown Model")
+			return nil, ErrUnknownModel
 		}
 	}
 	return loadTexture(ctx, url)
 }
 
-// SkinReader is a convenience method for retrieving the cape texture at p.CapeURL.
-// ctx must be non-nil. If p.CapeURL is empty, ErrNoCape is returned as error.
+// CapeReader is a convenience method for retrieving the cape texture at
+// p.CapeURL. ctx must be non-nil. If p.CapeURL == "", ErrNoCape is returned as
+// error.
 //
 // It is the client's responsibility to close the ReadCloser. When an error is
 // returned, ReadCloser is nil.
@@ -185,16 +183,16 @@ func (p *Properties) CapeReader(ctx context.Context) (io.ReadCloser, error) {
 	return loadTexture(ctx, p.CapeURL)
 }
 
-func loadTexture(ctx context.Context, endpoint string) (_ io.ReadCloser, err error) {
+func loadTexture(ctx context.Context, endpoint string) (io.ReadCloser, error) {
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		return
+		return nil, err
 	}
 	req = req.WithContext(ctx)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
@@ -203,13 +201,11 @@ func loadTexture(ctx context.Context, endpoint string) (_ io.ReadCloser, err err
 			URL: endpoint,
 			Err: &internal.FailedRequestError{StatusCode: resp.StatusCode},
 		}
-		return
+		return nil, err
 	}
 
 	return resp.Body, nil
 }
-
-///////////////////
 
 // Model represents the player model type used by a profile.
 type Model byte

@@ -1,15 +1,16 @@
 package profile
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"reflect"
 	"testing"
 	"time"
-	"context"
-	"reflect"
-	"net/http"
-	"errors"
-	"bytes"
-	"io/ioutil"
-	"net/url"
+
 	"github.com/PhilipBorgesen/minecraft/internal"
 )
 
@@ -129,32 +130,32 @@ func TestModel_String(t *testing.T) {
 }
 
 var testProfile_LoadNameHistoryInput = [...]struct {
-	profile *Profile
-	force bool
-	transport http.RoundTripper
+	profile    *Profile
+	force      bool
+	transport  http.RoundTripper
 	expProfile *Profile
-	expHist []PastName
-	expErr error
-} {
+	expHist    []PastName
+	expErr     error
+}{
 	{ // Load when history is unknown
 		profile: &Profile{
 			ID: "087cc153c3434ff7ac497de1569affa1",
 		},
-		force: false,
+		force:     false,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			Name: "Nergalic",
-			ID: "087cc153c3434ff7ac497de1569affa1",
-			NameHistory: []PastName {
+			ID:   "087cc153c3434ff7ac497de1569affa1",
+			NameHistory: []PastName{
 				{
-					Name: "GeneralSezuan",
+					Name:  "GeneralSezuan",
 					Until: msToTime(1423047705000),
 				},
 			},
 		},
 		expHist: []PastName{
 			{
-				Name: "GeneralSezuan",
+				Name:  "GeneralSezuan",
 				Until: msToTime(1423047705000),
 			},
 		},
@@ -165,26 +166,26 @@ var testProfile_LoadNameHistoryInput = [...]struct {
 			ID: "087cc153c3434ff7ac497de1569affa1",
 			NameHistory: []PastName{
 				{
-					Name: "NameInFakeHistory",
+					Name:  "NameInFakeHistory",
 					Until: msToTime(1234047705000),
 				},
 			},
 		},
-		force: false,
+		force:     false,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			Name: "",
-			ID: "087cc153c3434ff7ac497de1569affa1",
+			ID:   "087cc153c3434ff7ac497de1569affa1",
 			NameHistory: []PastName{
 				{
-					Name: "NameInFakeHistory",
+					Name:  "NameInFakeHistory",
 					Until: msToTime(1234047705000),
 				},
 			},
 		},
 		expHist: []PastName{
 			{
-				Name: "NameInFakeHistory",
+				Name:  "NameInFakeHistory",
 				Until: msToTime(1234047705000),
 			},
 		},
@@ -195,26 +196,26 @@ var testProfile_LoadNameHistoryInput = [...]struct {
 			ID: "087cc153c3434ff7ac497de1569affa1",
 			NameHistory: []PastName{
 				{
-					Name: "NameInFakeHistory",
+					Name:  "NameInFakeHistory",
 					Until: msToTime(1234047705000),
 				},
 			},
 		},
-		force: true,
+		force:     true,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			Name: "Nergalic",
-			ID: "087cc153c3434ff7ac497de1569affa1",
+			ID:   "087cc153c3434ff7ac497de1569affa1",
 			NameHistory: []PastName{
 				{
-					Name: "GeneralSezuan",
+					Name:  "GeneralSezuan",
 					Until: msToTime(1423047705000),
 				},
 			},
 		},
 		expHist: []PastName{
 			{
-				Name: "GeneralSezuan",
+				Name:  "GeneralSezuan",
 				Until: msToTime(1423047705000),
 			},
 		},
@@ -227,7 +228,7 @@ var testProfile_LoadNameHistoryInput = [...]struct {
 				{Name: "NotReplaced", Until: time.Unix(0, 0)},
 			},
 		},
-		force: true,
+		force:     true,
 		transport: nil,
 		expProfile: &Profile{
 			NameHistory: []PastName{
@@ -237,19 +238,19 @@ var testProfile_LoadNameHistoryInput = [...]struct {
 		expHist: []PastName{
 			{Name: "NotReplaced", Until: time.Unix(0, 0)},
 		},
-		expErr: errors.New("p.ID was not set"),
+		expErr: ErrUnsetPlayerID,
 	},
 	{ // Unforced: Old history returned (but not updated) on error
 		profile: &Profile{
 			ID: "00000000000000000000000000000000", // Doesn't exist
 		},
-		force: false,
+		force:     false,
 		transport: statusOverrideTransport{status: 204, transport: http.NewFileTransport(http.Dir("testdata"))},
 		expProfile: &Profile{
 			ID: "00000000000000000000000000000000",
 		},
 		expHist: nil,
-		expErr: ErrNoSuchProfile,
+		expErr:  ErrNoSuchProfile,
 	},
 }
 
@@ -264,8 +265,8 @@ func TestProfile_LoadNameHistory(t *testing.T) {
 		hist, err := profile.LoadNameHistory(context.Background(), tc.force)
 		if !reflect.DeepEqual(&profile, tc.expProfile) || !reflect.DeepEqual(hist, tc.expHist) || !reflect.DeepEqual(err, tc.expErr) {
 			t.Errorf(
-				"%#v.LoadNameHistory(ctx, %t) produced result:\n" +
-					"      %#v, %#v, %s\n" +
+				"%#v.LoadNameHistory(ctx, %t) produced result:\n"+
+					"      %#v, %#v, %s\n"+
 					"want: %#v, %#v, %s",
 				tc.profile, tc.force,
 				&profile, hist, p(err),
@@ -284,7 +285,7 @@ func TestProfile_LoadNameHistory_ContextUsed(t *testing.T) {
 
 	client.Transport = &ct
 
-	profile := Profile {ID: "dummy"}
+	profile := Profile{ID: "dummy"}
 	profile.LoadNameHistory(ctx, true)
 
 	if ct.Context != ctx {
@@ -293,32 +294,32 @@ func TestProfile_LoadNameHistory_ContextUsed(t *testing.T) {
 }
 
 var testProfile_LoadPropertiesInput = [...]struct {
-	profile *Profile
-	force bool
-	transport http.RoundTripper
+	profile    *Profile
+	force      bool
+	transport  http.RoundTripper
 	expProfile *Profile
-	expProps *Properties
-	expErr error
-} {
+	expProps   *Properties
+	expErr     error
+}{
 	{ // Load when properties are unknown
 		profile: &Profile{
 			ID: "087cc153c3434ff7ac497de1569affa1",
 		},
-		force: false,
+		force:     false,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			Name: "Nergalic",
-			ID: "087cc153c3434ff7ac497de1569affa1",
+			ID:   "087cc153c3434ff7ac497de1569affa1",
 			Properties: &Properties{
 				SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 				CapeURL: "",
-				Model: Steve,
+				Model:   Steve,
 			},
 		},
 		expProps: &Properties{
 			SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 			CapeURL: "",
-			Model: Steve,
+			Model:   Steve,
 		},
 		expErr: nil,
 	},
@@ -328,24 +329,24 @@ var testProfile_LoadPropertiesInput = [...]struct {
 			Properties: &Properties{
 				SkinURL: "dummy",
 				CapeURL: "dummy",
-				Model: Alex,
+				Model:   Alex,
 			},
 		},
-		force: false,
+		force:     false,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			Name: "",
-			ID: "087cc153c3434ff7ac497de1569affa1",
+			ID:   "087cc153c3434ff7ac497de1569affa1",
 			Properties: &Properties{
 				SkinURL: "dummy",
 				CapeURL: "dummy",
-				Model: Alex,
+				Model:   Alex,
 			},
 		},
 		expProps: &Properties{
 			SkinURL: "dummy",
 			CapeURL: "dummy",
-			Model: Alex,
+			Model:   Alex,
 		},
 		expErr: nil,
 	},
@@ -355,24 +356,24 @@ var testProfile_LoadPropertiesInput = [...]struct {
 			Properties: &Properties{
 				SkinURL: "dummy",
 				CapeURL: "dummy",
-				Model: Alex,
+				Model:   Alex,
 			},
 		},
-		force: true,
+		force:     true,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			Name: "Nergalic",
-			ID: "087cc153c3434ff7ac497de1569affa1",
+			ID:   "087cc153c3434ff7ac497de1569affa1",
 			Properties: &Properties{
 				SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 				CapeURL: "",
-				Model: Steve,
+				Model:   Steve,
 			},
 		},
 		expProps: &Properties{
 			SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 			CapeURL: "",
-			Model: Steve,
+			Model:   Steve,
 		},
 		expErr: nil,
 	},
@@ -382,36 +383,36 @@ var testProfile_LoadPropertiesInput = [...]struct {
 			Properties: &Properties{
 				SkinURL: "notReplaced",
 				CapeURL: "notReplaced",
-				Model: Alex,
+				Model:   Alex,
 			},
 		},
-		force: true,
+		force:     true,
 		transport: nil,
 		expProfile: &Profile{
 			Properties: &Properties{
 				SkinURL: "notReplaced",
 				CapeURL: "notReplaced",
-				Model: Alex,
+				Model:   Alex,
 			},
 		},
 		expProps: &Properties{
 			SkinURL: "notReplaced",
 			CapeURL: "notReplaced",
-			Model: Alex,
+			Model:   Alex,
 		},
-		expErr: errors.New("p.ID was not set"),
+		expErr: ErrUnsetPlayerID,
 	},
 	{ // Unforced: Old properties returned (but not updated) on error
 		profile: &Profile{
 			ID: "fictiveDemo", // Doesn't exist
 		},
-		force: false,
+		force:     false,
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expProfile: &Profile{
 			ID: "fictiveDemo",
 		},
 		expProps: nil,
-		expErr: ErrNoSuchProfile,
+		expErr:   ErrNoSuchProfile,
 	},
 }
 
@@ -426,8 +427,8 @@ func TestProfile_LoadProperties(t *testing.T) {
 		props, err := profile.LoadProperties(context.Background(), tc.force)
 		if !reflect.DeepEqual(&profile, tc.expProfile) || !reflect.DeepEqual(props, tc.expProps) || !reflect.DeepEqual(err, tc.expErr) {
 			t.Errorf(
-				"%#v.LoadProperties(ctx, %t) produced result:\n" +
-					"      %#v, %#v, %s\n" +
+				"%#v.LoadProperties(ctx, %t) produced result:\n"+
+					"      %#v, %#v, %s\n"+
 					"want: %#v, %#v, %s",
 				tc.profile, tc.force,
 				&profile, props, p(err),
@@ -446,7 +447,7 @@ func TestProfile_LoadProperties_ContextUsed(t *testing.T) {
 
 	client.Transport = &ct
 
-	profile := Profile {ID: "dummy"}
+	profile := Profile{ID: "dummy"}
 	profile.LoadProperties(ctx, true)
 
 	if ct.Context != ctx {
@@ -454,43 +455,46 @@ func TestProfile_LoadProperties_ContextUsed(t *testing.T) {
 	}
 }
 
-var testProperties_SkinReaderInput = [...] struct{
-	props *Properties
-	transport http.RoundTripper
+var testProperties_SkinReaderInput = [...]struct {
+	props      *Properties
+	transport  http.RoundTripper
 	expTexture []byte
-	expErr error
-} {
+	expErr     error
+}{
 	{
 		props: &Properties{
 			SkinURL: "",
-			Model: Steve,
+			Model:   Steve,
 		},
-		transport: http.NewFileTransport(http.Dir("testdata")),
-		expTexture: (func() []byte { b, _ := ioutil.ReadFile("testdata/SkinTemplates/steve.png"); return b})(),
+		transport:  http.NewFileTransport(http.Dir("testdata")),
+		expTexture: (func() []byte { b, _ := ioutil.ReadFile("testdata/SkinTemplates/steve.png"); return b })(),
 	},
 	{
 		props: &Properties{
 			SkinURL: "",
-			Model: Alex,
+			Model:   Alex,
 		},
-		transport: http.NewFileTransport(http.Dir("testdata")),
-		expTexture: (func() []byte { b, _ := ioutil.ReadFile("testdata/SkinTemplates/alex.png"); return b})(),
+		transport:  http.NewFileTransport(http.Dir("testdata")),
+		expTexture: (func() []byte { b, _ := ioutil.ReadFile("testdata/SkinTemplates/alex.png"); return b })(),
 	},
 	{
 		props: &Properties{
 			SkinURL: "",
-			Model: Model(99),
+			Model:   Model(99),
 		},
-		transport: nil,
+		transport:  nil,
 		expTexture: nil,
-		expErr: errors.New("SkinReader() encountered unknown Model"),
+		expErr:     ErrUnknownModel,
 	},
 	{
 		props: &Properties{
 			SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 		},
 		transport: http.NewFileTransport(http.Dir("testdata")),
-		expTexture: (func() []byte { b, _ := ioutil.ReadFile("testdata/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e"); return b})(),
+		expTexture: (func() []byte {
+			b, _ := ioutil.ReadFile("testdata/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e")
+			return b
+		})(),
 	},
 	{
 		props: &Properties{
@@ -498,7 +502,7 @@ var testProperties_SkinReaderInput = [...] struct{
 		},
 		transport: nil,
 		expErr: &url.Error{
-			Op: "parse",
+			Op:  "parse",
 			URL: "://",
 			Err: errors.New("missing protocol scheme"),
 		},
@@ -509,7 +513,7 @@ var testProperties_SkinReaderInput = [...] struct{
 		},
 		transport: errorTransport{testError},
 		expErr: &url.Error{
-			Op: "Get",
+			Op:  "Get",
 			URL: alexSkinURL,
 			Err: testError,
 		},
@@ -520,7 +524,7 @@ var testProperties_SkinReaderInput = [...] struct{
 		},
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expErr: &url.Error{
-			Op: "Get",
+			Op:  "Get",
 			URL: "http://example.com/does/not/exist.png",
 			Err: &internal.FailedRequestError{StatusCode: 404},
 		},
@@ -543,8 +547,8 @@ func TestProperties_SkinReader(t *testing.T) {
 
 		if !reflect.DeepEqual(texture, tc.expTexture) || !reflect.DeepEqual(err, tc.expErr) {
 			t.Errorf(
-				"%#v.SkinReader(ctx)\n" +
-					" was: %#v, %s\n" +
+				"%#v.SkinReader(ctx)\n"+
+					" was: %#v, %s\n"+
 					"want: %#v, %s",
 				tc.props,
 				texture, p(err),
@@ -563,7 +567,7 @@ func TestProperties_SkinReader_ContextUsed(t *testing.T) {
 
 	client.Transport = &ct
 
-	props := Properties {
+	props := Properties{
 		SkinURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 	}
 	props.SkinReader(ctx)
@@ -573,26 +577,29 @@ func TestProperties_SkinReader_ContextUsed(t *testing.T) {
 	}
 }
 
-var testProperties_CapeReaderInput = [...] struct{
-	props *Properties
-	transport http.RoundTripper
+var testProperties_CapeReaderInput = [...]struct {
+	props      *Properties
+	transport  http.RoundTripper
 	expTexture []byte
-	expErr error
-} {
+	expErr     error
+}{
 	{
 		props: &Properties{
 			CapeURL: "",
 		},
-		transport: nil,
+		transport:  nil,
 		expTexture: nil,
-		expErr: ErrNoCape,
+		expErr:     ErrNoCape,
 	},
 	{
 		props: &Properties{
 			CapeURL: "http://textures.minecraft.net/texture/ec80a225b145c812a6ef1ca29af0f3ebf02163874d1a66e53bac99965225e0",
 		},
 		transport: http.NewFileTransport(http.Dir("testdata")),
-		expTexture: (func() []byte { b, _ := ioutil.ReadFile("testdata/texture/ec80a225b145c812a6ef1ca29af0f3ebf02163874d1a66e53bac99965225e0"); return b})(),
+		expTexture: (func() []byte {
+			b, _ := ioutil.ReadFile("testdata/texture/ec80a225b145c812a6ef1ca29af0f3ebf02163874d1a66e53bac99965225e0")
+			return b
+		})(),
 	},
 	{
 		props: &Properties{
@@ -600,7 +607,7 @@ var testProperties_CapeReaderInput = [...] struct{
 		},
 		transport: nil,
 		expErr: &url.Error{
-			Op: "parse",
+			Op:  "parse",
 			URL: "://",
 			Err: errors.New("missing protocol scheme"),
 		},
@@ -611,7 +618,7 @@ var testProperties_CapeReaderInput = [...] struct{
 		},
 		transport: errorTransport{testError},
 		expErr: &url.Error{
-			Op: "Get",
+			Op:  "Get",
 			URL: alexSkinURL,
 			Err: testError,
 		},
@@ -622,7 +629,7 @@ var testProperties_CapeReaderInput = [...] struct{
 		},
 		transport: http.NewFileTransport(http.Dir("testdata")),
 		expErr: &url.Error{
-			Op: "Get",
+			Op:  "Get",
 			URL: "http://example.com/does/not/exist.png",
 			Err: &internal.FailedRequestError{StatusCode: 404},
 		},
@@ -645,8 +652,8 @@ func TestProperties_CapeReader(t *testing.T) {
 
 		if !reflect.DeepEqual(texture, tc.expTexture) || !reflect.DeepEqual(err, tc.expErr) {
 			t.Errorf(
-				"%#v.CapeReader(ctx)\n" +
-					" was: %#v, %s\n" +
+				"%#v.CapeReader(ctx)\n"+
+					" was: %#v, %s\n"+
 					"want: %#v, %s",
 				tc.props,
 				texture, p(err),
@@ -665,7 +672,7 @@ func TestProperties_CapeReader_ContextUsed(t *testing.T) {
 
 	client.Transport = &ct
 
-	props := Properties {
+	props := Properties{
 		CapeURL: "http://textures.minecraft.net/texture/5b40f251f7c8db60943495db6bf54353102d6cad20d2299d5f973f36b4f3677e",
 	}
 	props.CapeReader(ctx)

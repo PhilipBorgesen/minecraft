@@ -5,11 +5,12 @@ import (
 	"log"
 
 	"context"
+
 	"github.com/PhilipBorgesen/minecraft/profile"
 )
 
-// The following example shows how to retrieve and report all
-// information about a Minecraft profile based on its username.
+// The following example shows how to retrieve and report all information about
+// a Minecraft profile based on its username.
 func Example() {
 	ctx := context.TODO()
 
@@ -19,7 +20,7 @@ func Example() {
 	// Retrieve basic information
 	p, err := profile.Load(ctx, username)
 	if err != nil {
-		log.Fatalf("failed to load: %s", err)
+		log.Fatalf("Failed to load profile: %s", err)
 	}
 
 	// Get case-corrected username and ID
@@ -28,13 +29,13 @@ func Example() {
 	// Load previously associated usernames
 	hist, err := p.LoadNameHistory(ctx, false)
 	if err != nil {
-		log.Fatalf("failed to load name history: %s", err)
+		log.Fatalf("Failed to load profile name history: %s", err)
 	}
 
 	// Load cape, skin and model type
 	props, err := p.LoadProperties(ctx, false)
 	if err != nil {
-		log.Fatalf("failed to load properties: %s", err)
+		log.Fatalf("Failed to load profile properties: %s", err)
 	}
 
 	// Get model type, skin and cape
