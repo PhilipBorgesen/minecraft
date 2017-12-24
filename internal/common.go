@@ -13,7 +13,8 @@ import (
 
 var ErrUnknownFormat = errors.New("unknown JSON data format")
 
-// Non-200 responses from Mojang servers, incl. potential JSON error types and messages.
+// FailedRequestError represents a non-200 response from the Mojang servers,
+// incl. potential JSON error types and messages.
 type FailedRequestError struct {
 	StatusCode   int
 	ErrorCode    string
@@ -35,8 +36,9 @@ func (err *FailedRequestError) Error() string {
 	}
 }
 
-// GET JSON from an url and parse it into a map hierarchy
-// If a non-200 response is returned, the returned url.Error wraps an FailedRequestError.
+// FetchJSON GETs JSON from an URL and parses it into a map hierarchy.
+// If a non-200 response is returned, the returned url.Error wraps a
+// FailedRequestError.
 func FetchJSON(ctx context.Context, client *http.Client, endpoint string) (interface{}, error) {
 	// Fetch JSON
 	req, _ := http.NewRequest("GET", endpoint, nil) // Error only occurs if endpoint is bad
@@ -51,8 +53,9 @@ func FetchJSON(ctx context.Context, client *http.Client, endpoint string) (inter
 	return parseResponse(resp.Body, resp.StatusCode, "Get", endpoint)
 }
 
-// POST JSON to an url and parse the response JSON into a map hierarchy
-// If a non-200 response is returned, the returned url.Error wraps an FailedRequestError.
+// ExchangeJSON POSTs JSON to an URL and parses the response JSON into a map
+// hierarchy. If a non-200 response is returned, the returned url.Error wraps
+// a FailedRequestError.
 func ExchangeJSON(ctx context.Context, client *http.Client, endpoint string, data interface{}) (interface{}, error) {
 	buf := bytes.Buffer{}
 	err := json.NewEncoder(&buf).Encode(data)
@@ -103,8 +106,6 @@ func parseResponse(r io.ReadCloser, statusCode int, op, endpoint string) (interf
 	}
 	return j, nil
 }
-
-///////////////////
 
 func UnwrapFailedRequestError(uerr error) (err *FailedRequestError, ok bool) {
 	if e, match := uerr.(*url.Error); match {
