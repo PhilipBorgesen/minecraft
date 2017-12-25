@@ -45,7 +45,7 @@ func fillProfile(p *Profile, m map[string]interface{}) bool {
 // A "changedToAt" field is the "until" field of the previous PastName struct.
 func buildHistory(arr []interface{}) (name string, hist []PastName) {
 	if len(arr) == 0 {
-		return
+		return "", nil
 	}
 
 	hist = make([]PastName, len(arr)-1)
@@ -67,7 +67,7 @@ func buildHistory(arr []interface{}) (name string, hist []PastName) {
 		}
 	}
 
-	return
+	return name, hist
 }
 
 func msToTime(ms int64) time.Time {

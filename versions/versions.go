@@ -152,7 +152,7 @@ func initialize(l *Listing, j interface{}) (err error) {
 		vm[vers.ID] = vers
 	}
 
-	return
+	return nil
 }
 
 func buildVersion(m map[string]interface{}, v *Version) {
