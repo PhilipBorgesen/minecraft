@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"time"
 
+	"fmt"
+
 	"github.com/PhilipBorgesen/minecraft/internal"
 )
 
@@ -59,18 +61,31 @@ func (p *Profile) String() string {
 // pre-loaded.
 func (p *Profile) LoadNameHistory(ctx context.Context, force bool) (hist []PastName, err error) {
 	if p.NameHistory == nil || force {
-		var loaded *Profile
-		loaded, err = LoadWithNameHistory(ctx, p.ID)
-		if err != nil {
-			if err == ErrNoSuchProfile && p.ID == "" {
-				err = ErrUnsetPlayerID
-			}
-		} else {
-			p.Name = loaded.Name
-			p.NameHistory = loaded.NameHistory
+		if p.ID == "" {
+			return p.NameHistory, ErrUnsetPlayerID
 		}
+
+		var js interface{}
+		endpoint := fmt.Sprintf(loadWithNameHistoryURL, p.ID)
+
+		js, err = internal.FetchJSON(ctx, client, endpoint)
+		if err != nil {
+			return p.NameHistory, transformError(err)
+		}
+
+		defer func() { // If JSON data isn't structured as expected
+			if r := recover(); r != nil {
+				hist = p.NameHistory
+				err = &url.Error{Op: "Parse", URL: endpoint, Err: internal.ErrUnknownFormat}
+			}
+		}()
+
+		name, hist := buildHistory(js.([]interface{}))
+
+		p.Name = name
+		p.NameHistory = hist
 	}
-	return p.NameHistory, err
+	return p.NameHistory, nil
 }
 
 // LoadProperties loads and returns p.Properties, which contains the profile's
@@ -90,18 +105,40 @@ func (p *Profile) LoadNameHistory(ctx context.Context, force bool) (hist []PastN
 // NB! For each profile, profile properties may only be requested once per minute.
 func (p *Profile) LoadProperties(ctx context.Context, force bool) (ps *Properties, err error) {
 	if p.Properties == nil || force {
-		var loaded *Profile
-		loaded, err = LoadWithProperties(ctx, p.ID)
-		if err != nil {
-			if err == ErrNoSuchProfile && p.ID == "" {
-				err = ErrUnsetPlayerID
-			}
-		} else {
-			p.Name = loaded.Name
-			p.Properties = loaded.Properties
+		if p.ID == "" {
+			return p.Properties, ErrUnsetPlayerID
 		}
+
+		var js interface{}
+		endpoint := fmt.Sprintf(loadWithPropertiesURL, p.ID)
+
+		js, err = internal.FetchJSON(ctx, client, endpoint)
+		if err != nil {
+			return p.Properties, transformError(err)
+		}
+
+		defer func() { // If JSON data isn't structured as expected
+			if r := recover(); r != nil {
+				ps = p.Properties
+				err = &url.Error{Op: "Parse", URL: endpoint, Err: internal.ErrUnknownFormat}
+			}
+		}()
+
+		m := js.(map[string]interface{})
+		ps, err = buildProperties(m["properties"].([]interface{}))
+		if err != nil {
+			// Let the entire loading fail even if just property construction fails.
+			// May always be changed later if this is too drastic.
+			return p.Properties, &url.Error{Op: "Parse", URL: endpoint, Err: err}
+		}
+
+		if !fillProfile(p, m) {
+			return p.Properties, ErrNoSuchProfile
+		}
+
+		p.Properties = ps
 	}
-	return p.Properties, err
+	return p.Properties, nil
 }
 
 /*// UploadSkin sets s as the skin for the profile identified by p.ID.

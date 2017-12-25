@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"encoding/base64"
+
 	"github.com/PhilipBorgesen/minecraft/internal"
 )
 
@@ -26,7 +28,7 @@ func TestProfile_String(t *testing.T) {
 	}
 }
 
-var testPastName_EqualInput = [...]struct {
+var testPastNameEqualInput = [...]struct {
 	pn1    PastName
 	pn2    PastName
 	equals bool
@@ -75,7 +77,7 @@ var testPastName_EqualInput = [...]struct {
 }
 
 func TestPastName_Equal(t *testing.T) {
-	for _, tc := range testPastName_EqualInput {
+	for _, tc := range testPastNameEqualInput {
 		if res := tc.pn1.Equal(tc.pn2); res != tc.equals {
 			t.Errorf(
 				"\n"+
@@ -99,7 +101,7 @@ func TestPastName_String(t *testing.T) {
 	}
 }
 
-var testModel_StringInput = [...]struct {
+var testModelStringInput = [...]struct {
 	model  Model
 	expStr string
 }{
@@ -118,7 +120,7 @@ var testModel_StringInput = [...]struct {
 }
 
 func TestModel_String(t *testing.T) {
-	for _, tc := range testModel_StringInput {
+	for _, tc := range testModelStringInput {
 		s := tc.model.String()
 		if s != tc.expStr {
 			t.Errorf(
@@ -129,7 +131,7 @@ func TestModel_String(t *testing.T) {
 	}
 }
 
-var testProfile_LoadNameHistoryInput = [...]struct {
+var testProfileLoadNameHistoryInput = [...]struct {
 	profile    *Profile
 	force      bool
 	transport  http.RoundTripper
@@ -241,16 +243,23 @@ var testProfile_LoadNameHistoryInput = [...]struct {
 		expErr: ErrUnsetPlayerID,
 	},
 	{ // Unforced: Old history returned (but not updated) on error
-		profile: &Profile{
-			ID: "00000000000000000000000000000000", // Doesn't exist
+		profile:    &Profile{ID: "00000000000000000000000000000000"}, // Doesn't exist
+		force:      false,
+		transport:  statusOverrideTransport{status: 204, transport: http.NewFileTransport(http.Dir("testdata"))},
+		expProfile: &Profile{ID: "00000000000000000000000000000000"},
+		expHist:    nil,
+		expErr:     ErrNoSuchProfile,
+	},
+	{ // Format error
+		profile:    &Profile{ID: "unexpectedFormat"},
+		transport:  http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile{ID: "unexpectedFormat"},
+		expHist:    nil,
+		expErr: &url.Error{
+			Op:  "Parse",
+			URL: "https://api.mojang.com/user/profiles/unexpectedFormat/names",
+			Err: internal.ErrUnknownFormat,
 		},
-		force:     false,
-		transport: statusOverrideTransport{status: 204, transport: http.NewFileTransport(http.Dir("testdata"))},
-		expProfile: &Profile{
-			ID: "00000000000000000000000000000000",
-		},
-		expHist: nil,
-		expErr:  ErrNoSuchProfile,
 	},
 }
 
@@ -258,7 +267,7 @@ func TestProfile_LoadNameHistory(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	for _, tc := range testProfile_LoadNameHistoryInput {
+	for _, tc := range testProfileLoadNameHistoryInput {
 		client.Transport = tc.transport
 		profile := *tc.profile
 
@@ -276,7 +285,7 @@ func TestProfile_LoadNameHistory(t *testing.T) {
 	}
 }
 
-func TestProfile_LoadNameHistory_ContextUsed(t *testing.T) {
+func TestProfile_LoadNameHistoryContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
@@ -293,7 +302,7 @@ func TestProfile_LoadNameHistory_ContextUsed(t *testing.T) {
 	}
 }
 
-var testProfile_LoadPropertiesInput = [...]struct {
+var testProfileLoadPropertiesInput = [...]struct {
 	profile    *Profile
 	force      bool
 	transport  http.RoundTripper
@@ -377,7 +386,7 @@ var testProfile_LoadPropertiesInput = [...]struct {
 		},
 		expErr: nil,
 	},
-	{ // Old properties returned (but not updated) on error
+	{ // Forced: ld properties returned (but not updated) on error
 		profile: &Profile{
 			ID: "",
 			Properties: &Properties{
@@ -403,16 +412,44 @@ var testProfile_LoadPropertiesInput = [...]struct {
 		expErr: ErrUnsetPlayerID,
 	},
 	{ // Unforced: Old properties returned (but not updated) on error
-		profile: &Profile{
-			ID: "fictiveDemo", // Doesn't exist
+		profile:    &Profile{ID: "fictiveDemo"}, // Doesn't exist
+		force:      false,
+		transport:  http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile{ID: "fictiveDemo"},
+		expProps:   nil,
+		expErr:     ErrNoSuchProfile,
+	},
+	{
+		profile:    &Profile{ID: "noSkinAndBadUUID"},
+		transport:  http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile{ID: "noSkinAndBadUUID"},
+		expProps:   nil,
+		expErr: &url.Error{
+			Op:  "Parse",
+			URL: "https://sessionserver.mojang.com/session/minecraft/profile/noSkinAndBadUUID",
+			Err: internal.ErrUnknownFormat,
 		},
-		force:     false,
-		transport: http.NewFileTransport(http.Dir("testdata")),
-		expProfile: &Profile{
-			ID: "fictiveDemo",
+	},
+	{
+		profile:    &Profile{ID: "badProperties"},
+		transport:  http.NewFileTransport(http.Dir("testdata")),
+		expProfile: &Profile{ID: "badProperties"},
+		expProps:   nil,
+		expErr: &url.Error{
+			Op:  "Parse",
+			URL: "https://sessionserver.mojang.com/session/minecraft/profile/badProperties",
+			Err: base64.CorruptInputError(0),
 		},
-		expProps: nil,
-		expErr:   ErrNoSuchProfile,
+	},
+	{
+		profile: &Profile{ID: "tooManyRequests"},
+		transport: statusOverrideTransport{
+			status:    429,
+			transport: http.NewFileTransport(http.Dir("testdata")),
+		},
+		expProfile: &Profile{ID: "tooManyRequests"},
+		expProps:   nil,
+		expErr:     ErrTooManyRequests,
 	},
 }
 
@@ -420,7 +457,7 @@ func TestProfile_LoadProperties(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	for _, tc := range testProfile_LoadPropertiesInput {
+	for _, tc := range testProfileLoadPropertiesInput {
 		client.Transport = tc.transport
 		profile := *tc.profile
 
@@ -438,7 +475,7 @@ func TestProfile_LoadProperties(t *testing.T) {
 	}
 }
 
-func TestProfile_LoadProperties_ContextUsed(t *testing.T) {
+func TestProfile_LoadPropertiesContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
@@ -455,7 +492,7 @@ func TestProfile_LoadProperties_ContextUsed(t *testing.T) {
 	}
 }
 
-var testProperties_SkinReaderInput = [...]struct {
+var testPropertiesSkinReaderInput = [...]struct {
 	props      *Properties
 	transport  http.RoundTripper
 	expTexture []byte
@@ -535,7 +572,7 @@ func TestProperties_SkinReader(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	for _, tc := range testProperties_SkinReaderInput {
+	for _, tc := range testPropertiesSkinReaderInput {
 		var buf bytes.Buffer
 		client.Transport = tc.transport
 
@@ -558,7 +595,7 @@ func TestProperties_SkinReader(t *testing.T) {
 	}
 }
 
-func TestProperties_SkinReader_ContextUsed(t *testing.T) {
+func TestProperties_SkinReaderContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
@@ -577,7 +614,7 @@ func TestProperties_SkinReader_ContextUsed(t *testing.T) {
 	}
 }
 
-var testProperties_CapeReaderInput = [...]struct {
+var testPropertiesCapeReaderInput = [...]struct {
 	props      *Properties
 	transport  http.RoundTripper
 	expTexture []byte
@@ -640,7 +677,7 @@ func TestProperties_CapeReader(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	for _, tc := range testProperties_CapeReaderInput {
+	for _, tc := range testPropertiesCapeReaderInput {
 		var buf bytes.Buffer
 		client.Transport = tc.transport
 
@@ -663,7 +700,7 @@ func TestProperties_CapeReader(t *testing.T) {
 	}
 }
 
-func TestProperties_CapeReader_ContextUsed(t *testing.T) {
+func TestProperties_CapeReaderContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
