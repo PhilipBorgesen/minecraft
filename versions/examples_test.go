@@ -10,7 +10,7 @@ import (
 )
 
 // The following example demonstrates how to retrieve an updated listing of
-// Mincraft releases and print information for select versions.
+// Minecraft releases and print information for select versions.
 func ExampleLoad() {
 	ctx := context.TODO()
 
