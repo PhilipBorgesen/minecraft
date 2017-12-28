@@ -289,7 +289,7 @@ func TestProfile_LoadNameHistoryContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -479,7 +479,7 @@ func TestProfile_LoadPropertiesContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -599,7 +599,7 @@ func TestProperties_SkinReaderContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -704,7 +704,7 @@ func TestProperties_CapeReaderContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct

@@ -54,12 +54,10 @@ func Load(ctx context.Context) (Listing, error) {
 // It is the same as l.Versions[l.Latest.Release], except LatestRelease will
 // panic if l.Versions doesn't contain the key l.Latest.Release.
 func (l Listing) LatestRelease() Version {
-	v, ok := l.Versions[l.Latest.Release]
-	if ok {
+	if v, ok := l.Versions[l.Latest.Release]; ok {
 		return v
-	} else {
-		panic("minecraft/versions: Listing.Versions does not contain Listing.Latest.Release ('" + l.Latest.Release + "')")
 	}
+	panic("minecraft/versions: Listing.Versions does not contain Listing.Latest.Release ('" + l.Latest.Release + "')")
 }
 
 // Type represents the release type of a version.

@@ -291,7 +291,7 @@ func TestFetchJSON(t *testing.T) {
 }
 
 func TestFetchJSONContextUsed(t *testing.T) {
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client := &http.Client{}
@@ -326,7 +326,7 @@ var testExchangeJSONInput = [...]struct {
 		endpoint:  "data.json",
 		data:      func() {},
 		expRes:    nil,
-		expErr:    &json.UnsupportedTypeError{reflect.TypeOf(func() {})},
+		expErr:    &json.UnsupportedTypeError{Type: reflect.TypeOf(func() {})},
 	},
 	{
 		transport: http.NewFileTransport(http.Dir("testdata")),
@@ -370,7 +370,7 @@ func TestExchangeJSON(t *testing.T) {
 }
 
 func TestExchangeJSONContextUsed(t *testing.T) {
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client := &http.Client{}
@@ -382,7 +382,9 @@ func TestExchangeJSONContextUsed(t *testing.T) {
 	}
 }
 
-///////////////////
+/*************
+* TEST UTILS *
+*************/
 
 type errorTransport struct {
 	err error
@@ -392,8 +394,6 @@ func (et errorTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return nil, et.err
 }
 
-///////////////////
-
 type CtxStoreTransport struct {
 	Context context.Context
 }
@@ -402,8 +402,6 @@ func (ct *CtxStoreTransport) RoundTrip(req *http.Request) (*http.Response, error
 	ct.Context = req.Context()
 	return nil, errors.New("RoundTrip was called")
 }
-
-///////////////////
 
 var testError = errors.New("test")
 

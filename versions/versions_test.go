@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/PhilipBorgesen/minecraft/internal"
 	"net/http"
 	"net/url"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/PhilipBorgesen/minecraft/internal"
 )
 
 var loadExpectations = [...]Version{
@@ -62,7 +63,7 @@ func TestLoadContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -220,7 +221,9 @@ func TestTypeString(t *testing.T) {
 	}
 }
 
-///////////////////
+/*************
+* TEST UTILS *
+*************/
 
 func pVersion(v Version) string {
 	return fmt.Sprintf("Version{ID: %q, Released: %s, Type: %s}", v.ID, v.Released, v.Type)

@@ -85,7 +85,7 @@ func TestLoadContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -158,7 +158,7 @@ func TestLoadAtTimeContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -232,7 +232,7 @@ func TestLoadWithNameHistoryContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -311,7 +311,7 @@ func TestLoadWithPropertiesContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -398,7 +398,7 @@ func TestLoadManyContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx := context.WithValue(context.Background(), "", nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
