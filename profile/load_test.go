@@ -132,16 +132,6 @@ var testLoadAtTimeInput = [...]struct {
 			Err: internal.ErrUnknownFormat,
 		},
 	},
-	{
-		username:  "GeneralSezuan",
-		time:      time.Unix(0, 0),
-		transport: http.NewFileTransport(http.Dir("testdata")),
-		expProfile: &Profile{
-			Name: "Nergalic",
-			ID:   "087cc153c3434ff7ac497de1569affa1",
-		},
-		expErr: nil,
-	},
 }
 
 func TestLoadAtTime(t *testing.T) {
@@ -371,13 +361,13 @@ var testLoadManyInput = [...]struct {
 		transport: http.NewFileTransport(http.Dir("testdata/LoadMany/success")),
 		expProfiles: []*Profile{
 			{
-				ID:   "087cc153c3434ff7ac497de1569affa1",
-				Name: "Nergalic",
-			},
-			{
 				ID:          "cabefc91b5df4c87886a6c604da2e46f",
 				Name:        "AxeLaw",
 				NameHistory: emptyHist,
+			},
+			{
+				ID:   "087cc153c3434ff7ac497de1569affa1",
+				Name: "Nergalic",
 			},
 		},
 		expErr: nil,
@@ -394,8 +384,8 @@ func TestLoadMany(t *testing.T) {
 		if !reflect.DeepEqual(profiles, tc.expProfiles) || !reflect.DeepEqual(err, tc.expErr) {
 			t.Errorf(
 				"LoadMany(ctx, %q)\n"+
-					" was: %#v, %s\n"+
-					"want: %#v, %s",
+					" was: %s, %s\n"+
+					"want: %s, %s",
 				tc.ids,
 				profiles, p(err),
 				tc.expProfiles, p(tc.expErr),
