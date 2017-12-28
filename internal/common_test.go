@@ -291,7 +291,7 @@ func TestFetchJSON(t *testing.T) {
 }
 
 func TestFetchJSONContextUsed(t *testing.T) {
-	ctx := context.WithValue(context.Background(), "", nil)
+	ctx := context.WithValue(context.Background(), dummy, nil)
 	ct := CtxStoreTransport{}
 
 	client := &http.Client{}
@@ -370,7 +370,7 @@ func TestExchangeJSON(t *testing.T) {
 }
 
 func TestExchangeJSONContextUsed(t *testing.T) {
-	ctx := context.WithValue(context.Background(), "", nil)
+	ctx := context.WithValue(context.Background(), dummy, nil)
 	ct := CtxStoreTransport{}
 
 	client := &http.Client{}
@@ -385,6 +385,8 @@ func TestExchangeJSONContextUsed(t *testing.T) {
 /*************
 * TEST UTILS *
 *************/
+
+var dummy struct{}
 
 type errorTransport struct {
 	err error

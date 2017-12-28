@@ -63,7 +63,7 @@ func TestLoadContextUsed(t *testing.T) {
 	origTransport := client.Transport
 	defer func() { client.Transport = origTransport }()
 
-	ctx := context.WithValue(context.Background(), "", nil)
+	ctx := context.WithValue(context.Background(), dummy, nil)
 	ct := CtxStoreTransport{}
 
 	client.Transport = &ct
@@ -224,6 +224,8 @@ func TestTypeString(t *testing.T) {
 /*************
 * TEST UTILS *
 *************/
+
+var dummy struct{}
 
 func pVersion(v Version) string {
 	return fmt.Sprintf("Version{ID: %q, Released: %s, Type: %s}", v.ID, v.Released, v.Type)
